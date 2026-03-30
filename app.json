@@ -6,10 +6,18 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "sdkVersion": "51.0.0",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0F"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourbuilding.parkingapp"
     },
     "android": {
       "package": "com.yourbuilding.parkingapp",
@@ -31,8 +39,7 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#F5A623",
-          "defaultChannel": "parking_alerts",
-          "sounds": []
+          "defaultChannel": "parking_alerts"
         }
       ]
     ],
@@ -40,7 +47,6 @@
       "eas": {
         "projectId": "3aea0a64-fdc2-4772-bd79-385a6052debf"
       }
-    },
-    "owner": "kfirs86"
+    }
   }
 }
