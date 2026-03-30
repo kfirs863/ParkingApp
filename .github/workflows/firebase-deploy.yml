@@ -29,10 +29,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # 3. התקנת תלויות (Dependencies) עבור הפרויקט הראשי ועבור ה-Functions
+      # 3. התקנת תלויות (Dependencies) - נוסף דגל להתעלמות מהתנגשויות גרסאות ב-React Native
       - name: Install Dependencies
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           if [ -d "functions" ]; then
             cd functions && npm ci
           fi
