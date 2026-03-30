@@ -53,10 +53,11 @@ export default function DoneScreen({ navigation }: Props) {
         <Button
           label="כניסה לאפליקציה 🚀"
           onPress={() => {
-            navigation.getParent()?.reset({
-              index: 0,
-              routes: [{ name: 'Main' as never }],
-            });
+            // App.tsx listens to the user profile doc via onSnapshot.
+            // Since saveUserProfile was called in CarNumberScreen,
+            // App.tsx will automatically switch from onboarding to main.
+            // This button is a no-op fallback — the transition should
+            // already be happening by the time the user sees this screen.
           }}
         />
       </Animated.View>

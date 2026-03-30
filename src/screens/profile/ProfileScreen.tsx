@@ -247,10 +247,7 @@ export default function ProfileScreen() {
             onValueChange={async (val) => {
               const uid = auth.currentUser?.uid;
               if (!uid) return;
-              const { doc: fDoc, updateDoc: fUpdate } = await import('firebase/firestore');
-              const { db: fDb } = await import('../../config/firebase');
-              await fUpdate(fDoc(fDb, 'users', uid), { pushGeneral: val });
-              setDirty(false); // preference saved immediately, not via main save
+              await updateDoc(doc(db, 'users', uid), { pushGeneral: val });
             }}
             trackColor={{ true: colors.accent, false: colors.border }}
             thumbColor={colors.textPrimary}

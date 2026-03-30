@@ -6,8 +6,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell, StepIndicator } from '../../components';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { colors, spacing, radius, typography } from '../../theme';
 import { sendOTP, verifyOTP } from '../../config/firebase';
+import { getApp } from 'firebase/app';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'OTP'>;
@@ -22,6 +24,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const recaptchaRef = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   // Countdown for resend
   useEffect(() => {
@@ -65,6 +68,11 @@ export default function OTPScreen({ navigation, route }: Props) {
 
   return (
     <ScreenShell>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaRef}
+        firebaseConfig={getApp().options}
+        attemptInvisibleVerification
+      />
       <StepIndicator total={4} current={1} />
 
       <Text style={styles.title}>הכנס קוד אימות</Text>
@@ -95,7 +103,7 @@ export default function OTPScreen({ navigation, route }: Props) {
         disabled={countdown > 0}
         onPress={async () => {
           try {
-            await sendOTP(phone);
+            await sendOTP(phone, recaptchaRef.current!);
             setCountdown(30);
           } catch {
             Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');

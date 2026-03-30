@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { navigate } from '../navigation/navigationRef';
 import { Platform } from 'react-native';
 
@@ -15,34 +15,29 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Call this once after the user is authenticated.
  * Registers the device for push notifications and saves
  * the Expo push token to Firestore → functions use it for FCM.
  *
- * NOTE: Uses Expo Notifications (expo-notifications) which wraps
- * FCM on Android and APNs on iOS. Works with Firebase Functions
- * via the Expo Push API, or you can swap to @react-native-firebase/messaging
- * for direct FCM if you eject from Expo.
+ * @param uid - The current user's uid. When uid changes (login/logout),
+ *              the hook re-runs registration automatically.
  */
-export function usePushNotifications() {
+export function usePushNotifications(uid: string | null) {
+  // Re-register whenever the authenticated user changes
   useEffect(() => {
-    registerForPushNotifications();
+    if (uid) registerForPushNotifications(uid);
+  }, [uid]);
 
-    // Handle notification tap while app is backgrounded/closed
+  // Handle notification tap while app is backgrounded/closed
+  useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, string>;
       handleNotificationAction(data);
     });
-
     return () => sub.remove();
   }, []);
 }
 
-async function registerForPushNotifications(): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
-  // Always refresh — token may have changed after reinstall or cache clear
-
+async function registerForPushNotifications(uid: string): Promise<void> {
   // Android requires a notification channel
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('parking_alerts', {
@@ -74,12 +69,13 @@ async function registerForPushNotifications(): Promise<void> {
 
   const token = tokenData.data;
 
-  // Update unconditionally — cheap write, prevents stale token bugs
-  await updateDoc(doc(db, 'users', uid), {
+  // Use setDoc with merge — works even if user doc doesn't exist yet
+  // (e.g. during onboarding before profile is saved)
+  await setDoc(doc(db, 'users', uid), {
     fcmToken: token,
     fcmTokenUpdatedAt: new Date(),
     platform: Platform.OS,
-  });
+  }, { merge: true });
 }
 
 // Handle the action embedded in the notification payload
