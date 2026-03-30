@@ -2,14 +2,20 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
-  inMemoryPersistence,
   PhoneAuthProvider,
   signInWithCredential as _signInWithCredential,
   signOut as _signOut,
   onAuthStateChanged as _onAuthStateChanged,
   ApplicationVerifier,
   User,
+  Persistence,
 } from 'firebase/auth';
+// getReactNativePersistence is only in the RN build — metro.config.js resolves
+// firebase/auth to the RN build at runtime via the react-native export condition.
+// We cast here since the browser-build types don't declare it.
+const { getReactNativePersistence } = require('firebase/auth') as {
+  getReactNativePersistence: (s: typeof AsyncStorage) => Persistence;
+};
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
@@ -31,7 +37,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 let auth: ReturnType<typeof getAuth>;
 try {
-  auth = initializeAuth(app, { persistence: inMemoryPersistence });
+  auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 } catch {
   auth = getAuth(app);
 }
