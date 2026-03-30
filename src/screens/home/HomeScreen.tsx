@@ -15,7 +15,7 @@ import {
 } from '../../hooks/useParking';
 import { auth, useUserProfile } from '../../config/firebase';
 import { Input } from '../../components';
-import ActiveParkingCard from '../../components/ActiveParkingCard';
+import { ActiveParkingCard } from '../../components/ActiveParkingCard';
 import { useActiveParking } from '../../hooks/useParking';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
@@ -532,7 +532,13 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       {/* Active parking — only visible to the two involved parties */}
-      {activeSession && <ActiveParkingCard session={activeSession} />}
+      {activeSession && (
+        <ActiveParkingCard
+          requestId={activeSession.id}
+          spotNumber={activeSession.spotNumber ?? ''}
+          endTime={activeSession.toTime}
+        />
+      )}
 
       {/* Tabs */}
       <View style={s.tabs}>

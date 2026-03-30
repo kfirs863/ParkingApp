@@ -2,18 +2,31 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
+  Persistence,
   PhoneAuthProvider,
   signInWithCredential,
   ApplicationVerifier,
 } from 'firebase/auth';
-// @ts-ignore - getReactNativePersistence lives in the RN build of @firebase/auth
-import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.rn.js';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Custom AsyncStorage persistence for Firebase Auth (replaces removed getReactNativePersistence)
+const asyncStoragePersistence = {
+  type: 'LOCAL',
+  async _isAvailable() { return true; },
+  async _set(key: string, value: string) { await AsyncStorage.setItem(key, JSON.stringify(value)); },
+  async _get(key: string) {
+    const val = await AsyncStorage.getItem(key);
+    return val ? JSON.parse(val) : null;
+  },
+  async _remove(key: string) { await AsyncStorage.removeItem(key); },
+  _addListener(_key: string, _listener: unknown) {},
+  _removeListener(_key: string, _listener: unknown) {},
+} as unknown as Persistence;
 
 // הגדרות ה-Firebase שלך
 const firebaseConfig = {
@@ -33,7 +46,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 let auth: any;
 try {
   auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
+    persistence: asyncStoragePersistence,
   });
 } catch (e) {
   auth = getAuth(app);

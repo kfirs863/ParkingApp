@@ -11,7 +11,7 @@ import { createOffer } from '../../hooks/useParking';
 import { useUserProfile } from '../../config/firebase';
 
 type Props = {
-  navigation: BottomTabNavigationProp<MainTabParamList, 'Offer'>;
+  navigation: BottomTabNavigationProp<MainTabParamList, 'Availability'>;
 };
 
 // ─── Quick presets ────────────────────────────────────────

@@ -86,7 +86,7 @@ export default function OTPScreen({ navigation, route }: Props) {
         {Array(CODE_LENGTH).fill(null).map((_, i) => (
           <TextInput
             key={i}
-            ref={(r) => (inputRefs.current[i] = r)}
+            ref={(r) => { inputRefs.current[i] = r; }}
             style={[styles.codeBox, code[i] ? styles.codeBoxFilled : null]}
             value={code[i]}
             onChangeText={(t) => handleDigit(t, i)}
