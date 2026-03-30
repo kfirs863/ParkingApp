@@ -14,20 +14,6 @@ import {
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Custom AsyncStorage persistence for Firebase Auth (replaces removed getReactNativePersistence)
-const asyncStoragePersistence = {
-  type: 'LOCAL',
-  async _isAvailable() { return true; },
-  async _set(key: string, value: string) { await AsyncStorage.setItem(key, JSON.stringify(value)); },
-  async _get(key: string) {
-    const val = await AsyncStorage.getItem(key);
-    return val ? JSON.parse(val) : null;
-  },
-  async _remove(key: string) { await AsyncStorage.removeItem(key); },
-  _addListener(_key: string, _listener: unknown) {},
-  _removeListener(_key: string, _listener: unknown) {},
-} as unknown as Persistence;
-
 // הגדרות ה-Firebase שלך
 const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -41,19 +27,41 @@ const firebaseConfig = {
 
 // אתחול האפליקציה בבטחה
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const db = getFirestore(app);
 
-// אתחול ה-Auth עם AsyncStorage persistence
-let auth: any;
-try {
-  auth = initializeAuth(app, {
-    persistence: asyncStoragePersistence,
-  });
-} catch (e) {
-  auth = getAuth(app);
+// Auth is initialized lazily on first access so that native modules
+// (AsyncStorage) are ready before initializeAuth is called.
+let _auth: ReturnType<typeof getAuth> | null = null;
+export function getAuthInstance() {
+  if (_auth) return _auth;
+  const asyncStoragePersistence = {
+    type: 'LOCAL',
+    async _isAvailable() { return true; },
+    async _set(key: string, value: string) { await AsyncStorage.setItem(key, JSON.stringify(value)); },
+    async _get(key: string) {
+      const val = await AsyncStorage.getItem(key);
+      return val ? JSON.parse(val) : null;
+    },
+    async _remove(key: string) { await AsyncStorage.removeItem(key); },
+    _addListener(_key: string, _listener: unknown) {},
+    _removeListener(_key: string, _listener: unknown) {},
+  } as unknown as Persistence;
+  try {
+    _auth = initializeAuth(app, { persistence: asyncStoragePersistence });
+  } catch {
+    _auth = getAuth(app);
+  }
+  return _auth;
 }
 
-export { auth, app };
-export const db = getFirestore(app);
+// Convenience proxy — behaves like the auth object but initializes on first use
+export const auth = new Proxy({} as ReturnType<typeof getAuth>, {
+  get(_target, prop) {
+    return (getAuthInstance() as any)[prop];
+  },
+});
+
+export { app };
 
 // ─── OTP ──────────────────────────────────────────────────
 const OTP_STORAGE_KEY = 'otp_verification_id';
