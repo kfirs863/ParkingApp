@@ -1,0 +1,369 @@
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+
+admin.initializeApp();
+
+const db = admin.firestore();
+const messaging = admin.messaging();
+
+// ─── Types ────────────────────────────────────────────────
+interface ParkingRequest {
+  requesterId: string;
+  requesterName: string;
+  ownerId?: string;
+  ownerName?: string;
+  spotNumber?: string;
+  status: string;
+  isGuest?: boolean;
+  carNumber?: string;
+  fromTime: admin.firestore.Timestamp;
+  toTime: admin.firestore.Timestamp;
+}
+
+interface UserDoc {
+  fcmToken?: string;
+  ownedSpot?: string | null;
+  pushGeneral?: boolean; // false = opted out of broadcast pushes
+}
+
+// ─── Helpers ──────────────────────────────────────────────
+
+async function getUser(uid: string): Promise<UserDoc | null> {
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.exists ? (snap.data() as UserDoc) : null;
+}
+
+async function getToken(uid: string): Promise<string | null> {
+  const user = await getUser(uid);
+  return user?.fcmToken ?? null;
+}
+
+async function sendPush(
+  token: string,
+  uid: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  try {
+    await messaging.send({
+      token,
+      notification: { title, body },
+      data: data ?? {},
+      android: {
+        priority: 'high',
+        notification: { channelId: 'parking_alerts', sound: 'default' },
+      },
+      apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+    });
+  } catch (err: any) {
+    if (
+      err.code === 'messaging/registration-token-not-registered' ||
+      err.code === 'messaging/invalid-registration-token'
+    ) {
+      await db.collection('users').doc(uid).update({ fcmToken: null });
+      functions.logger.warn(`Stale FCM token removed for uid=${uid}`);
+    } else {
+      functions.logger.error('FCM send failed', err);
+    }
+  }
+}
+
+function fmtTime(ts: admin.firestore.Timestamp): string {
+  return ts.toDate().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ─────────────────────────────────────────────────────────
+// TRIGGER: status transitions on parkingRequests
+// ─────────────────────────────────────────────────────────
+export const onParkingRequestUpdated = functions
+  .region('europe-west1')
+  .firestore.document('parkingRequests/{requestId}')
+  .onUpdate(async (change) => {
+    const before = change.before.data() as ParkingRequest;
+    const after  = change.after.data()  as ParkingRequest;
+    const id     = change.after.id;
+
+    // open → approved (regular)
+    if (before.status === 'open' && after.status === 'approved' && !after.isGuest) {
+      const token = await getToken(after.requesterId);
+      if (token) await sendPush(token, after.requesterId,
+        'הבקשה שלך אושרה!',
+        `חניה ${after.spotNumber} של ${after.ownerName} זמינה עד ${fmtTime(after.toTime)}. הכנס מספר רכב לאישור.`,
+        { requestId: id, action: 'confirm_car' }
+      );
+    }
+
+    // open → confirmed (guest, car known upfront)
+    if (before.status === 'open' && after.status === 'confirmed' && after.isGuest) {
+      const token = await getToken(after.requesterId);
+      if (token) await sendPush(token, after.requesterId,
+        'האורח שלך יכול לחנות!',
+        `חניה ${after.spotNumber} של ${after.ownerName} אושרה עד ${fmtTime(after.toTime)}.`,
+        { requestId: id, action: 'view_active' }
+      );
+    }
+
+    // approved → confirmed
+    if (before.status === 'approved' && after.status === 'confirmed' && after.ownerId) {
+      const token = await getToken(after.ownerId);
+      if (token) await sendPush(token, after.ownerId,
+        'מישהו נכנס לחניה שלך',
+        `${after.requesterName} חונה בחניה ${after.spotNumber} עד ${fmtTime(after.toTime)}.`,
+        { requestId: id, action: 'view_active' }
+      );
+    }
+
+    // → cancelled
+    if (before.status !== 'cancelled' && after.status === 'cancelled') {
+      if (before.status === 'approved' && after.ownerId) {
+        const token = await getToken(after.requesterId);
+        if (token) await sendPush(token, after.requesterId,
+          'האישור בוטל',
+          `${after.ownerName} ביטל את אישור החניה. שלח בקשה חדשה.`,
+          { requestId: id, action: 'cancelled' }
+        );
+      }
+      if (before.status === 'confirmed' && after.ownerId) {
+        const token = await getToken(after.ownerId);
+        if (token) await sendPush(token, after.ownerId,
+          'החניה שלך פנויה',
+          `${after.requesterName} יצא מהחניה לפני הזמן.`,
+          { requestId: id, action: 'freed' }
+        );
+      }
+    }
+  });
+
+// ─────────────────────────────────────────────────────────
+// TRIGGER: new open request
+//
+// FIX: unified into ONE trigger — no double-push.
+// Logic:
+//   1. Find owners with matching availability window → send targeted push
+//   2. If ANY targeted push was sent → skip broadcast entirely
+//   3. If NO targeted owners → broadcast to opt-in owners only
+//
+// Result: every owner gets AT MOST ONE notification per request.
+// ─────────────────────────────────────────────────────────
+export const onNewParkingRequest = functions
+  .region('europe-west1')
+  .firestore.document('parkingRequests/{requestId}')
+  .onCreate(async (snap) => {
+    const req = snap.data() as ParkingRequest;
+    if (req.status !== 'open') return;
+
+    // Step 1: targeted push to availability-window owners
+    const availSnap = await db
+      .collection('spotAvailability')
+      .where('status',   '==', 'active')
+      .where('fromTime', '<=', req.toTime)
+      .where('toTime',   '>=', req.fromTime)
+      .get();
+
+    const targetedUids = new Set<string>();
+
+    for (const d of availSnap.docs) {
+      const avail = d.data();
+      if (avail.ownerId === req.requesterId) continue;
+      targetedUids.add(avail.ownerId);
+      const token = await getToken(avail.ownerId);
+      if (!token) continue;
+      await sendPush(token, avail.ownerId,
+        'בקשה תואמת לחלון הזמינות שלך!',
+        `${req.requesterName} צריך/ה חניה מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}.`,
+        { requestId: snap.id, action: 'approve' }
+      );
+    }
+
+    // Step 2: if any targeted push was sent → skip broadcast
+    if (targetedUids.size > 0) {
+      functions.logger.info(`Targeted ${targetedUids.size} available owners — broadcast skipped`);
+      return;
+    }
+
+    // Step 3: broadcast to remaining opt-in owners
+    const ownersSnap = await db.collection('users').where('ownedSpot', '!=', null).get();
+
+    const tokens: { token: string; uid: string }[] = ownersSnap.docs
+      .filter((d) => {
+        const data = d.data() as UserDoc;
+        return (
+          d.id !== req.requesterId &&
+          !targetedUids.has(d.id) &&
+          data.fcmToken &&
+          data.pushGeneral !== false   // respects opt-out preference
+        );
+      })
+      .map((d) => ({ token: d.data().fcmToken as string, uid: d.id }));
+
+    if (tokens.length === 0) return;
+
+    const BATCH = 500;
+    for (let i = 0; i < tokens.length; i += BATCH) {
+      const slice = tokens.slice(i, i + BATCH);
+      try {
+        const result = await messaging.sendEachForMulticast({
+          tokens: slice.map((t) => t.token),
+          notification: {
+            title: `${req.requesterName} מחפש/ת חניה`,
+            body: `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
+          },
+          data: { requestId: snap.id, action: 'approve' },
+          android: {
+            priority: 'high',
+            notification: { channelId: 'parking_alerts', sound: 'default' },
+          },
+        });
+        // Clean up stale tokens
+        result.responses.forEach((resp, idx) => {
+          if (!resp.success &&
+              resp.error?.code === 'messaging/registration-token-not-registered') {
+            db.collection('users').doc(slice[idx].uid).update({ fcmToken: null });
+          }
+        });
+      } catch (err) {
+        functions.logger.error('Multicast failed', err);
+      }
+    }
+  });
+
+// ─────────────────────────────────────────────────────────
+// SCHEDULED: expire stale requests every 15 minutes
+// ─────────────────────────────────────────────────────────
+export const expireStaleRequests = functions
+  .region('europe-west1')
+  .pubsub.schedule('every 15 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const staleSnap = await db
+      .collection('parkingRequests')
+      .where('status', 'in', ['open', 'approved'])
+      .where('toTime', '<', now)
+      .get();
+
+    if (staleSnap.empty) return;
+
+    const batch = db.batch();
+    const pushPromises: Promise<void>[] = [];
+
+    staleSnap.docs.forEach((d) => {
+      const data = d.data() as ParkingRequest;
+      batch.update(d.ref, { status: 'expired', expiredAt: now });
+      if (data.status === 'open' && data.requesterId) {
+        pushPromises.push(
+          getToken(data.requesterId).then((token) => {
+            if (!token) return;
+            return sendPush(token, data.requesterId,
+              'הבקשה שלך לא אושרה',
+              `הבקשה ל-${fmtTime(data.toTime)} פגה תוקף. שלח בקשה חדשה אם עדיין צריך.`,
+              { action: 'expired' }
+            );
+          })
+        );
+      }
+    });
+
+    await Promise.all([batch.commit(), ...pushPromises]);
+    functions.logger.info(`Expired ${staleSnap.size} stale requests`);
+  });
+
+// ─────────────────────────────────────────────────────────
+// SCHEDULED: generate today's windows from recurring rules (00:05 daily)
+// ─────────────────────────────────────────────────────────
+export const generateRecurringAvailability = functions
+  .region('europe-west1')
+  .pubsub.schedule('5 0 * * *')
+  .timeZone('Asia/Jerusalem')
+  .onRun(async () => {
+    const now      = new Date();
+    const today    = now.getDay();            // 0=Sun … 6=Sat
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const rulesSnap = await db
+      .collection('availabilityRules')
+      .where('active', '==', true)
+      .where('days', 'array-contains', today)
+      .get();
+
+    if (rulesSnap.empty) return;
+
+    const batch = db.batch();
+
+    for (const d of rulesSnap.docs) {
+      const rule = d.data();
+      const [fh, fm] = (rule.fromHHMM as string).split(':').map(Number);
+      const [th, tm] = (rule.toHHMM   as string).split(':').map(Number);
+
+      const fromTime = new Date(`${todayStr}T${String(fh).padStart(2,'0')}:${String(fm).padStart(2,'0')}:00`);
+      const toTime   = new Date(`${todayStr}T${String(th).padStart(2,'0')}:${String(tm).padStart(2,'0')}:00`);
+
+      if (toTime <= now) continue;
+
+      // Dedup: skip if already created for today
+      const existing = await db.collection('spotAvailability')
+        .where('ownerId', '==', rule.ownerId)
+        .where('ruleId',  '==', d.id)
+        .where('dateStr', '==', todayStr)
+        .get();
+      if (!existing.empty) continue;
+
+      const ref = db.collection('spotAvailability').doc();
+      batch.set(ref, {
+        ownerId:        rule.ownerId,
+        ownerName:      rule.ownerName,
+        ownerApartment: rule.ownerApartment,
+        ownerTower:     rule.ownerTower,
+        spotNumber:     rule.spotNumber,
+        fromTime:       admin.firestore.Timestamp.fromDate(fromTime),
+        toTime:         admin.firestore.Timestamp.fromDate(toTime),
+        status:         'active',
+        ruleId:         d.id,
+        dateStr:        todayStr,
+        isRecurring:    true,
+        createdAt:      admin.firestore.Timestamp.now(),
+      });
+    }
+
+    await batch.commit();
+    functions.logger.info(`Generated recurring windows for ${rulesSnap.size} rules`);
+  });
+
+// ─────────────────────────────────────────────────────────
+// TRIGGER: parkingPings — owner sends gentle reminder to requester
+// Rate-limited: max 1 push per 5 minutes per requestId (server-side guard)
+// ─────────────────────────────────────────────────────────
+export const onParkingPing = functions
+  .region('europe-west1')
+  .firestore.document('parkingPings/{pingId}')
+  .onCreate(async (snap) => {
+    const ping = snap.data();
+
+    // Server-side rate limit: check last ping for this request in last 5 mins
+    const fiveMinsAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
+    const recentPings = await db
+      .collection('parkingPings')
+      .where('requestId', '==', ping.requestId)
+      .where('createdAt', '>', fiveMinsAgo)
+      .get();
+
+    // More than 1 = this ping + at least one recent → throttle
+    if (recentPings.size > 1) {
+      functions.logger.warn(`Ping throttled for requestId=${ping.requestId}`);
+      await snap.ref.update({ throttled: true });
+      return;
+    }
+
+    const token = await getToken(ping.toUid);
+    if (!token) return;
+
+    const toTime = (ping.toTime as admin.firestore.Timestamp).toDate()
+      .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+    await sendPush(
+      token, ping.toUid,
+      'תזכורת: זמן החניה מסתיים בקרוב',
+      `החניה ${ping.spotNumber} שלך מסתיימת ב-${toTime}. אנא התכונן/י לפנות את המקום.`,
+      { requestId: ping.requestId, action: 'view_active' }
+    );
+  });
