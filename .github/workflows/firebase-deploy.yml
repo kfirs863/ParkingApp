@@ -1,0 +1,54 @@
+name: Deploy to Firebase
+
+# האוטומציה תרוץ בכל פעם שקוד חדש נדחף ל-branch הראשי
+on:
+  push:
+    branches:
+      - master
+    # היא תרוץ רק אם חל שינוי בקבצים הרלוונטיים ל-Backend
+    paths:
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - '.github/workflows/firebase-deploy.yml'
+
+jobs:
+  deploy_backend:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. משיכת הקוד מהמאגר
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. הגדרת Node.js בגרסה 20 (הגרסה המומלצת ל-Firebase Functions)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. התקנת תלויות (Dependencies) עבור הפרויקט הראשי ועבור ה-Functions
+      - name: Install Dependencies
+        run: |
+          npm ci
+          if [ -d "functions" ]; then
+            cd functions && npm ci
+          fi
+
+      # 4. בניית ה-Functions (ממיר TypeScript ל-JavaScript)
+      - name: Build Functions
+        run: |
+          if [ -d "functions" ]; then
+            cd functions && npm run build
+          fi
+
+      # 5. פריסה ל-Firebase באמצעות הטוקן הסודי
+      - name: Deploy to Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only functions,firestore:rules,firestore:indexes
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          PROJECT_ID: parkingapp-1fb82
