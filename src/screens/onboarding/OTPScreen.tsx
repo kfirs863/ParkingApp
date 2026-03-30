@@ -7,7 +7,7 @@ import { RouteProp } from '@react-navigation/native';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
-import { verifyOTP } from '../../config/firebase';
+import { sendOTP, verifyOTP } from '../../config/firebase';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'OTP'>;
@@ -93,7 +93,14 @@ export default function OTPScreen({ navigation, route }: Props) {
       {/* Resend */}
       <TouchableOpacity
         disabled={countdown > 0}
-        onPress={() => { /* resend logic */ setCountdown(30); }}
+        onPress={async () => {
+          try {
+            await sendOTP(phone);
+            setCountdown(30);
+          } catch {
+            Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');
+          }
+        }}
         style={styles.resendWrap}
       >
         <Text style={[styles.resend, countdown > 0 && styles.resendDisabled]}>

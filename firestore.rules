@@ -30,112 +30,130 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // ── Update rule helpers ──────────────────────────────
+
+    // Requester cancels their own open request
+    function canRequesterUpdate() {
+      return existingData().requesterId == request.auth.uid
+        && existingData().status == 'open'
+        && incomingData().status == 'cancelled'
+        && incomingData().requesterId == existingData().requesterId;
+    }
+
+    // Spot owner approves an open request (regular → approved, guest → confirmed)
+    function canOwnerApprove() {
+      return existingData().status == 'open'
+        && existingData().requesterId != request.auth.uid
+        && incomingData().ownerId == request.auth.uid
+        && (incomingData().status == 'approved' || incomingData().status == 'confirmed')
+        && 'ownerName' in incomingData()
+        && 'spotNumber' in incomingData()
+        && 'ownerPhone' in incomingData()
+        && incomingData().requesterId == existingData().requesterId;
+    }
+
+    // Requester confirms car number (after owner approved)
+    function canRequesterConfirm() {
+      return existingData().status == 'approved'
+        && existingData().requesterId == request.auth.uid
+        && incomingData().status == 'confirmed'
+        && 'carNumber' in incomingData()
+        && incomingData().carNumber.size() >= 7
+        && incomingData().ownerId == existingData().ownerId
+        && incomingData().spotNumber == existingData().spotNumber;
+    }
+
+    // Either party can cancel an active session (end early)
+    function canEitherCancel() {
+      return (existingData().requesterId == request.auth.uid
+           || existingData().ownerId == request.auth.uid)
+        && existingData().status in ['approved', 'confirmed']
+        && incomingData().status == 'cancelled'
+        && incomingData().requesterId == existingData().requesterId
+        && incomingData().ownerId == existingData().ownerId;
+    }
+
+    // Owner reverts their own approval back to open (within time window)
+    function canOwnerRevertApproval() {
+      return existingData().ownerId == request.auth.uid
+        && existingData().status == 'approved'
+        && incomingData().status == 'open'
+        && incomingData().requesterId == existingData().requesterId;
+    }
+
     // ── users ─────────────────────────────────────────────
-    // Any authenticated user can read profiles (needed to look up
-    // owner names, apartment numbers etc.)
-    // Only the user themselves can write their own document.
     match /users/{uid} {
       allow read: if isAuth();
       allow create: if isOwner(uid);
 
       allow update: if isOwner(uid)
-        // Prevent a user from changing their ownedSpot to one already
-        // registered by someone else (server-side double-check;
-        // client-side check in checkSpotTaken is UX only).
         && (
           incomingData().ownedSpot == null
           || incomingData().ownedSpot == existingData().ownedSpot
           || !exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          // Allow if no OTHER user has this spot
-          // (Full uniqueness enforced by Cloud Function; rules can't
-          //  query collections, so we rely on the client check + CF.)
         );
 
-      allow delete: if false; // never delete user docs from client
+      allow delete: if false;
     }
 
     // ── parkingRequests ───────────────────────────────────
     match /parkingRequests/{requestId} {
-
-      // Any logged-in user can read requests
-      // (needed to show the feed and own request status)
       allow read: if isAuth();
 
-      // CREATE — only logged-in users can post a request
       allow create: if isAuth()
-        // Must be creating for themselves
         && incomingData().requesterId == request.auth.uid
-        // Must be 'open' status on creation
         && incomingData().status == 'open'
-        // fromTime must be before toTime
         && incomingData().fromTime < incomingData().toTime
-        // toTime must be in the future (within 24h)
         && incomingData().toTime > request.time
         && incomingData().toTime < request.time + duration.value(24, 'h')
-        // Required fields
         && 'requesterName' in incomingData()
         && 'requesterApartment' in incomingData()
         && 'requesterTower' in incomingData();
 
-      // UPDATE — depends on who is updating and what they're changing
       allow update: if isAuth() && (
-        canRequesterUpdate() || canOwnerApprove() || canRequesterConfirm() || canEitherCancel()
+        canRequesterUpdate()
+        || canOwnerApprove()
+        || canRequesterConfirm()
+        || canEitherCancel()
+        || canOwnerRevertApproval()
       );
 
-      allow delete: if false; // soft-delete via status only
+      allow delete: if false;
     }
-  }
 
-  // ── Update rules ────────────────────────────────────────
+    // ── spotAvailability ─────────────────────────────────
+    match /spotAvailability/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && incomingData().ownerId == request.auth.uid;
+      allow update: if isAuth()
+        && existingData().ownerId == request.auth.uid;
+      allow delete: if false;
+    }
 
-  // Requester cancels their own open request
-  function canRequesterUpdate() {
-    return existingData().requesterId == request.auth.uid
-      && existingData().status == 'open'
-      && incomingData().status == 'cancelled'
-      // Can only change status field
-      && incomingData().requesterId == existingData().requesterId;
-  }
+    // ── availabilityRules ────────────────────────────────
+    match /availabilityRules/{ruleId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && incomingData().ownerId == request.auth.uid;
+      allow update: if isAuth()
+        && existingData().ownerId == request.auth.uid;
+      allow delete: if isAuth()
+        && existingData().ownerId == request.auth.uid;
+    }
 
-  // Spot owner approves an open request
-  function canOwnerApprove() {
-    // Must have a registered spot
-    return existingData().status == 'open'
-      // Can't approve your own request
-      && existingData().requesterId != request.auth.uid
-      // Must be setting themselves as the owner
-      && incomingData().ownerId == request.auth.uid
-      // Status must move to 'approved'
-      && incomingData().status == 'approved'
-      // Required owner fields must be present
-      && 'ownerName' in incomingData()
-      && 'spotNumber' in incomingData()
-      && 'ownerPhone' in incomingData()
-      // Requester info must not be tampered with
-      && incomingData().requesterId == existingData().requesterId;
-  }
+    // ── parkingPings ─────────────────────────────────────
+    match /parkingPings/{pingId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && incomingData().fromUid == request.auth.uid;
+    }
 
-  // Requester confirms car number (after owner approved)
-  function canRequesterConfirm() {
-    return existingData().status == 'approved'
-      && existingData().requesterId == request.auth.uid
-      && incomingData().status == 'confirmed'
-      // carNumber must be present and non-empty
-      && 'carNumber' in incomingData()
-      && incomingData().carNumber.size() >= 7
-      // Owner fields must not be tampered with
-      && incomingData().ownerId == existingData().ownerId
-      && incomingData().spotNumber == existingData().spotNumber;
-  }
-
-  // Either party can cancel an active session (end early)
-  function canEitherCancel() {
-    return (existingData().requesterId == request.auth.uid
-         || existingData().ownerId == request.auth.uid)
-      && existingData().status in ['approved', 'confirmed']
-      && incomingData().status == 'cancelled'
-      // Core fields must not change
-      && incomingData().requesterId == existingData().requesterId
-      && incomingData().ownerId == existingData().ownerId;
+    // ── thanks ───────────────────────────────────────────
+    match /thanks/{thankId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && incomingData().fromUid == request.auth.uid;
+    }
   }
 }

@@ -102,18 +102,42 @@ export function useActiveParking() {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
-    const q = query(
+
+    // Two queries: one as requester, one as owner
+    const qRequester = query(
       collection(db, 'parkingRequests'),
       where('status', '==', 'confirmed'),
+      where('requesterId', '==', uid),
       where('toTime', '>', Timestamp.now())
     );
-    return onSnapshot(q, (snap) => {
-      const mine = snap.docs
-        .map(toRequest)
-        .find((r) => r.requesterId === uid || r.ownerId === uid) ?? null;
-      setSession(mine);
-      setLoading(false);
+    const qOwner = query(
+      collection(db, 'parkingRequests'),
+      where('status', '==', 'confirmed'),
+      where('ownerId', '==', uid),
+      where('toTime', '>', Timestamp.now())
+    );
+
+    let requesterResult: ParkingRequest | null = null;
+    let ownerResult: ParkingRequest | null = null;
+    let loaded = 0;
+
+    const update = () => {
+      setSession(requesterResult ?? ownerResult);
+      if (loaded >= 2) setLoading(false);
+    };
+
+    const unsub1 = onSnapshot(qRequester, (snap) => {
+      requesterResult = snap.docs.map(toRequest)[0] ?? null;
+      loaded++;
+      update();
     });
+    const unsub2 = onSnapshot(qOwner, (snap) => {
+      ownerResult = snap.docs.map(toRequest)[0] ?? null;
+      loaded++;
+      update();
+    });
+
+    return () => { unsub1(); unsub2(); };
   }, []);
   return { session, loading };
 }
@@ -236,7 +260,6 @@ export async function cancelApproval(requestId: string): Promise<void> {
       ownerPhone: null,
       spotNumber: null,
       approvedAt: null,
-      cancelledApprovalAt: serverTimestamp(),
     });
   });
 }
@@ -254,6 +277,31 @@ export async function cancelRequest(requestId: string): Promise<void> {
     status: 'cancelled',
     cancelledAt: serverTimestamp(),
   });
+}
+
+/** Publish a one-off availability window (owner offers their spot) */
+export async function createOffer(params: {
+  spotNumber: string;
+  fromTime: Date;
+  toTime: Date;
+  ownerProfile: { name: string; apartment: string; tower: string };
+}): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+
+  const ref = await addDoc(collection(db, 'spotAvailability'), {
+    ownerId: user.uid,
+    ownerName: params.ownerProfile.name,
+    ownerApartment: params.ownerProfile.apartment,
+    ownerTower: params.ownerProfile.tower,
+    spotNumber: params.spotNumber,
+    fromTime: Timestamp.fromDate(params.fromTime),
+    toTime: Timestamp.fromDate(params.toTime),
+    status: 'active',
+    isRecurring: false,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
 }
 
 // ─── Helpers ──────────────────────────────────────────────

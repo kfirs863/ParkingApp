@@ -8,6 +8,7 @@ import { MainTabParamList } from '../../navigation/MainNavigator';
 import { Button, Input } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { createRequest } from '../../hooks/useParking';
+import { useUserProfile } from '../../config/firebase';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Request'> };
 type ParkingType = 'self' | 'guest';
@@ -50,6 +51,8 @@ const tp = StyleSheet.create({
 
 // ─── RequestScreen ────────────────────────────────────────
 export default function RequestScreen({ navigation }: Props) {
+  const { profile } = useUserProfile();
+
   const snap30 = () => {
     const d = new Date(); d.setSeconds(0, 0);
     const rem = d.getMinutes() % 30;
@@ -74,6 +77,7 @@ export default function RequestScreen({ navigation }: Props) {
   const tooFarAhead = fromTime > maxFrom;
 
   const isValid =
+    !!profile &&
     durationMins > 0 &&
     !tooFarAhead &&
     (parkingType === 'self' || (parkingType === 'guest' && plateValid));
@@ -103,7 +107,11 @@ export default function RequestScreen({ navigation }: Props) {
       await createRequest({
         fromTime,
         toTime,
-        requesterProfile: { name: 'שמי', apartment: '45', tower: '1' }, // TODO: from profile context
+        requesterProfile: {
+          name: profile!.name,
+          apartment: profile!.apartment,
+          tower: profile!.tower,
+        },
         guestCarNumber: parkingType === 'guest' ? plateNorm : undefined,
       });
 

@@ -8,6 +8,7 @@ import { MainTabParamList } from '../../navigation/MainNavigator';
 import { Button, Input, ScreenShell } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { createOffer } from '../../hooks/useParking';
+import { useUserProfile } from '../../config/firebase';
 
 type Props = {
   navigation: BottomTabNavigationProp<MainTabParamList, 'Offer'>;
@@ -96,6 +97,8 @@ const tp = StyleSheet.create({
 
 // ─── OfferSpotScreen ──────────────────────────────────────
 export default function OfferSpotScreen({ navigation }: Props) {
+  const { profile } = useUserProfile();
+
   const snap30 = () => {
     const d = new Date();
     d.setSeconds(0, 0);
@@ -125,7 +128,7 @@ export default function OfferSpotScreen({ navigation }: Props) {
       ? `${durationMins} דקות`
       : `${(durationMins / 60).toFixed(1).replace('.0', '')} שעות`;
 
-  const isValid = spotNumber.trim().length > 0 && durationMins > 0;
+  const isValid = !!profile && (profile.ownedSpot || spotNumber.trim().length > 0) && durationMins > 0;
 
   const handleSubmit = async () => {
     if (!spotNumber.trim()) {
@@ -140,14 +143,13 @@ export default function OfferSpotScreen({ navigation }: Props) {
     setLoading(true);
     try {
       await createOffer({
-        spotNumber: spotNumber.trim(),
+        spotNumber: profile?.ownedSpot ?? spotNumber.trim(),
         fromTime,
         toTime,
         ownerProfile: {
-          // In real app, pull from auth context/user profile
-          name: 'שמי',
-          apartment: '45',
-          tower: '1',
+          name: profile!.name,
+          apartment: profile!.apartment,
+          tower: profile!.tower,
         },
       });
 

@@ -154,17 +154,20 @@ export const onNewParkingRequest = functions
     if (req.status !== 'open') return;
 
     // Step 1: targeted push to availability-window owners
+    // Firestore can't range-filter on two different fields,
+    // so we filter fromTime <= req.toTime and check toTime client-side
     const availSnap = await db
       .collection('spotAvailability')
       .where('status',   '==', 'active')
       .where('fromTime', '<=', req.toTime)
-      .where('toTime',   '>=', req.fromTime)
       .get();
 
     const targetedUids = new Set<string>();
 
     for (const d of availSnap.docs) {
       const avail = d.data();
+      // Client-side check for the other range bound
+      if (avail.toTime.toMillis() < req.fromTime.toMillis()) continue;
       if (avail.ownerId === req.requesterId) continue;
       targetedUids.add(avail.ownerId);
       const token = await getToken(avail.ownerId);
@@ -276,14 +279,21 @@ export const generateRecurringAvailability = functions
   .pubsub.schedule('5 0 * * *')
   .timeZone('Asia/Jerusalem')
   .onRun(async () => {
-    const now      = new Date();
-    const today    = now.getDay();            // 0=Sun … 6=Sat
-    const todayStr = now.toISOString().slice(0, 10);
+    // Use Israel timezone for correct local date/time
+    const nowUTC = new Date();
+    const israelFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const todayStr = israelFormatter.format(nowUTC); // YYYY-MM-DD
+    const israelDay = new Date(
+      nowUTC.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
+    ).getDay();
 
     const rulesSnap = await db
       .collection('availabilityRules')
       .where('active', '==', true)
-      .where('days', 'array-contains', today)
+      .where('days', 'array-contains', israelDay)
       .get();
 
     if (rulesSnap.empty) return;
@@ -295,10 +305,15 @@ export const generateRecurringAvailability = functions
       const [fh, fm] = (rule.fromHHMM as string).split(':').map(Number);
       const [th, tm] = (rule.toHHMM   as string).split(':').map(Number);
 
-      const fromTime = new Date(`${todayStr}T${String(fh).padStart(2,'0')}:${String(fm).padStart(2,'0')}:00`);
-      const toTime   = new Date(`${todayStr}T${String(th).padStart(2,'0')}:${String(tm).padStart(2,'0')}:00`);
+      // Build dates in Israel timezone by computing UTC offset
+      const israelNow = new Date(nowUTC.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+      const offsetMs = israelNow.getTime() - nowUTC.getTime();
+      const baseDate = new Date(`${todayStr}T00:00:00.000Z`);
 
-      if (toTime <= now) continue;
+      const fromTime = new Date(baseDate.getTime() + (fh * 60 + fm) * 60000 - offsetMs);
+      const toTime   = new Date(baseDate.getTime() + (th * 60 + tm) * 60000 - offsetMs);
+
+      if (toTime <= nowUTC) continue;
 
       // Dedup: skip if already created for today
       const existing = await db.collection('spotAvailability')
