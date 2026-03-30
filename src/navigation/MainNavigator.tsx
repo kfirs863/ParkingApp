@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '../theme';
 import HomeScreen from '../screens/home/HomeScreen';
@@ -34,6 +35,9 @@ const ti = StyleSheet.create({
 });
 
 export default function MainNavigator() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 56;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -42,8 +46,8 @@ export default function MainNavigator() {
         tabBarStyle: {
           backgroundColor: colors.bgCard,
           borderTopColor: colors.border,
-          height: Platform.OS === 'ios' ? 80 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: tabBarHeight + insets.bottom,
+          paddingBottom: insets.bottom,
         },
       }}
     >
