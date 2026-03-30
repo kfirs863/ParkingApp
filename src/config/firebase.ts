@@ -1,19 +1,16 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
   PhoneAuthProvider,
   signInWithCredential,
   ApplicationVerifier,
+  Auth,
 } from 'firebase/auth';
-// getReactNativePersistence lives in the RN-specific build of @firebase/auth
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { getReactNativePersistence } = require('@firebase/auth/dist/rn/index.js') as {
-  getReactNativePersistence: (storage: typeof AsyncStorage) => any;
-};
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
+  Firestore,
 } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,20 +25,41 @@ const firebaseConfig = {
   measurementId: "G-NXDBL6KYN4"
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// These are set by initializeFirebase() which must be called from App.tsx
+// before any component renders.
+let _app: FirebaseApp;
+let _auth: Auth;
+let _db: Firestore;
 
-let auth: ReturnType<typeof getAuth>;
-if (getApps().length === 1) {
-  // First init — use initializeAuth with AsyncStorage persistence
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} else {
-  auth = getAuth(app);
+/**
+ * Call this once at the very top of App.tsx (outside any component),
+ * after all native modules are registered by the RN runtime.
+ */
+export function initializeFirebase() {
+  if (_app) return; // already initialized (fast-refresh)
+  _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  _db = getFirestore(_app);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getReactNativePersistence } = require('@firebase/auth/dist/rn/index.js');
+    _auth = initializeAuth(_app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    // initializeAuth already called (hot reload) — just grab the existing instance
+    _auth = getAuth(_app);
+  }
 }
 
-export { auth, app };
-export const db = getFirestore(app);
+export const getAppInstance = () => _app;
+export const getAuthInstance = () => _auth;
+export const getDbInstance = () => _db;
+
+// Convenience accessors used throughout the app
+// Safe to call after initializeFirebase() has run
+export const auth: Auth = new Proxy({} as Auth, { get: (_, p) => (_auth as any)[p] });
+export const db: Firestore = new Proxy({} as Firestore, { get: (_, p) => (_db as any)[p] });
+export const app: FirebaseApp = new Proxy({} as FirebaseApp, { get: (_, p) => (_app as any)[p] });
 
 // ─── OTP ──────────────────────────────────────────────────
 const OTP_STORAGE_KEY = 'otp_verification_id';
@@ -50,7 +68,7 @@ export async function sendOTP(
   phoneNumber: string,
   verifier: ApplicationVerifier
 ): Promise<void> {
-  const provider = new PhoneAuthProvider(auth);
+  const provider = new PhoneAuthProvider(_auth);
   const id = await provider.verifyPhoneNumber(phoneNumber, verifier);
   await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
 }
@@ -59,7 +77,7 @@ export async function verifyOTP(code: string): Promise<void> {
   const id = await AsyncStorage.getItem(OTP_STORAGE_KEY);
   if (!id) throw new Error('No verification ID — resend the code');
   const credential = PhoneAuthProvider.credential(id, code);
-  await signInWithCredential(auth, credential);
+  await signInWithCredential(_auth, credential);
   await AsyncStorage.removeItem(OTP_STORAGE_KEY);
 }
 
@@ -76,11 +94,11 @@ export interface UserProfile {
 export async function checkSpotTaken(
   spotNumber: string
 ): Promise<{ apartment: string; tower: string } | null> {
-  const uid = auth.currentUser?.uid;
+  const uid = _auth.currentUser?.uid;
   const trimmed = spotNumber.trim();
   if (!trimmed) return null;
   const snap = await getDocs(
-    query(collection(db, 'users'), where('ownedSpot', '==', trimmed))
+    query(collection(_db, 'users'), where('ownedSpot', '==', trimmed))
   );
   const others = snap.docs.filter((d) => d.id !== uid);
   if (others.length === 0) return null;
@@ -89,9 +107,9 @@ export async function checkSpotTaken(
 }
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
-  const user = auth.currentUser;
+  const user = _auth.currentUser;
   if (!user) throw new Error('Not authenticated');
-  const ref = doc(db, 'users', user.uid);
+  const ref = doc(_db, 'users', user.uid);
   const existing = await getDoc(ref);
   await setDoc(ref, {
     ...profile,
@@ -106,9 +124,9 @@ export function useUserProfile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
+    const uid = _auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
-    const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+    const unsub = onSnapshot(doc(_db, 'users', uid), (snap) => {
       setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
       setLoading(false);
     });

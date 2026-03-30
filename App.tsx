@@ -1,3 +1,7 @@
+import { initializeFirebase } from './src/config/firebase';
+// Must be called before any Firebase usage and before any component renders
+initializeFirebase();
+
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
