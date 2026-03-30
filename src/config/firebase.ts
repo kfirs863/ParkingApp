@@ -13,12 +13,13 @@ import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
+  authDomain: "parkingapp-1fb82.firebaseapp.com",
+  projectId: "parkingapp-1fb82",
+  storageBucket: "parkingapp-1fb82.firebasestorage.app",
+  messagingSenderId: "364657925609",
+  appId: "1:364657925609:web:da15c5dbeb56e8b2e63f78",
+  measurementId: "G-NXDBL6KYN4"
 };
 
 const app = initializeApp(firebaseConfig);
