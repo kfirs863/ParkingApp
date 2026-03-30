@@ -20,7 +20,6 @@
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
-    "expo-firebase-core": "^6.0.0",
     "expo-firebase-recaptcha": "^2.3.1",
     "expo-notifications": "~0.32.16",
     "expo-status-bar": "~3.0.9",
