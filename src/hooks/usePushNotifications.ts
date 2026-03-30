@@ -4,6 +4,11 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { navigate } from '../navigation/navigationRef';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// Push notifications (remote) are not supported in Expo Go SDK 53+.
+// All registration is skipped when running inside Expo Go.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
 // Configure how notifications appear when app is in foreground
 Notifications.setNotificationHandler({
@@ -26,7 +31,7 @@ Notifications.setNotificationHandler({
 export function usePushNotifications(uid: string | null) {
   // Re-register whenever the authenticated user changes
   useEffect(() => {
-    if (uid) registerForPushNotifications(uid);
+    if (uid && !isExpoGo) registerForPushNotifications(uid);
   }, [uid]);
 
   // Handle notification tap while app is backgrounded/closed
