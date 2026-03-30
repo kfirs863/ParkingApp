@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "sdkVersion": "51.0.0",
+    "sdkVersion": "54.0.0",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
