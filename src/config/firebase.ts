@@ -5,14 +5,11 @@ import {
   getReactNativePersistence,
   PhoneAuthProvider,
   signInWithCredential,
-  RecaptchaVerifier,
 } from 'firebase/auth';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
-import { getReactNativePersistence } from 'firebase/auth/react-native';
-import { getReactNativePersistence } from 'firebase/auth/react-native';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -33,37 +30,17 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 // אתחול ה-Auth עם Persistence (פותר את האזהרה ב-Expo Go)
 let auth: any;
 try {
+  // ניסיון לאתחל עם התמדת נתונים (Persistence) כדי שהמשתמש יישאר מחובר
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage)
   });
 } catch (e) {
-  auth = getAuth(app); // במקרה שכבר אותחל
+  // אם כבר אותחל (למשל בריענון קוד), פשוט נמשוך את הקיים
+  auth = getAuth(app);
 }
 
-export { auth };
+export { auth, app };
 export const db = getFirestore(app);
-
-// ─── OTP ──────────────────────────────────────────────────
-const OTP_STORAGE_KEY = 'otp_verification_id';
-
-export async function sendOTP(phoneNumber: string): Promise<void> {
-  const provider = new PhoneAuthProvider(auth);
-  // הערה: בבנייה אמיתית (APK) נשתמש ב-Invisible Recaptcha של Firebase Native
-  // כרגע ב-Expo Go זה משתמש במימוש ה-Web
-  const recaptcha = new RecaptchaVerifier(auth, 'recaptcha-container', { 
-    size: 'invisible' 
-  });
-  const id = await provider.verifyPhoneNumber(phoneNumber, recaptcha);
-  await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
-}
-
-export async function verifyOTP(code: string): Promise<void> {
-  const id = await AsyncStorage.getItem(OTP_STORAGE_KEY);
-  if (!id) throw new Error('No verification ID — resend the code');
-  const credential = PhoneAuthProvider.credential(id, code);
-  await signInWithCredential(auth, credential);
-  await AsyncStorage.removeItem(OTP_STORAGE_KEY);
-}
 
 // ─── User Profile ─────────────────────────────────────────
 export interface UserProfile {
