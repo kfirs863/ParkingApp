@@ -5,6 +5,7 @@ import {
   getReactNativePersistence,
   PhoneAuthProvider,
   signInWithCredential,
+  ApplicationVerifier,
 } from 'firebase/auth';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
@@ -30,17 +31,40 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 // אתחול ה-Auth עם Persistence (פותר את האזהרה ב-Expo Go)
 let auth: any;
 try {
-  // ניסיון לאתחל עם התמדת נתונים (Persistence) כדי שהמשתמש יישאר מחובר
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage)
   });
 } catch (e) {
-  // אם כבר אותחל (למשל בריענון קוד), פשוט נמשוך את הקיים
   auth = getAuth(app);
 }
 
 export { auth, app };
 export const db = getFirestore(app);
+
+// ─── OTP ──────────────────────────────────────────────────
+const OTP_STORAGE_KEY = 'otp_verification_id';
+
+/**
+ * Send OTP code to phone number.
+ * @param phoneNumber - Full international format e.g. +972501234567
+ * @param verifier - An ApplicationVerifier (reCAPTCHA).
+ */
+export async function sendOTP(
+  phoneNumber: string,
+  verifier: ApplicationVerifier
+): Promise<void> {
+  const provider = new PhoneAuthProvider(auth);
+  const id = await provider.verifyPhoneNumber(phoneNumber, verifier);
+  await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
+}
+
+export async function verifyOTP(code: string): Promise<void> {
+  const id = await AsyncStorage.getItem(OTP_STORAGE_KEY);
+  if (!id) throw new Error('No verification ID — resend the code');
+  const credential = PhoneAuthProvider.credential(id, code);
+  await signInWithCredential(auth, credential);
+  await AsyncStorage.removeItem(OTP_STORAGE_KEY);
+}
 
 // ─── User Profile ─────────────────────────────────────────
 export interface UserProfile {
@@ -83,7 +107,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 export function useUserProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
@@ -93,6 +117,6 @@ export function useUserProfile() {
     });
     return unsub;
   }, []);
-  
+
   return { profile, loading };
 }

@@ -119,21 +119,22 @@ export function useActiveParking() {
 
     let requesterResult: ParkingRequest | null = null;
     let ownerResult: ParkingRequest | null = null;
-    let loaded = 0;
+    let requesterReady = false;
+    let ownerReady = false;
 
     const update = () => {
       setSession(requesterResult ?? ownerResult);
-      if (loaded >= 2) setLoading(false);
+      if (requesterReady && ownerReady) setLoading(false);
     };
 
     const unsub1 = onSnapshot(qRequester, (snap) => {
       requesterResult = snap.docs.map(toRequest)[0] ?? null;
-      loaded++;
+      requesterReady = true;
       update();
     });
     const unsub2 = onSnapshot(qOwner, (snap) => {
       ownerResult = snap.docs.map(toRequest)[0] ?? null;
-      loaded++;
+      ownerReady = true;
       update();
     });
 

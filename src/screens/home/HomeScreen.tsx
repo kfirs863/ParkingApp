@@ -178,6 +178,12 @@ function ConfirmCarModal({
 }) {
   const [carNumber, setCarNumber] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Reset form state when a different request is opened
+  useEffect(() => {
+    if (visible) { setCarNumber(''); setLoading(false); }
+  }, [visible, request?.id]);
+
   if (!request) return null;
 
   const handleConfirm = async () => {

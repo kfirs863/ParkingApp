@@ -3,7 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 import { auth, db } from './src/config/firebase';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -16,20 +16,26 @@ type AppState = 'loading' | 'onboarding' | 'main';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('loading');
-  usePushNotifications();
+  const [uid, setUid] = useState<string | null>(null);
+  usePushNotifications(uid);
 
+  // Step 1: Track auth state
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user: User | null) => {
-      if (!user) { setAppState('onboarding'); return; }
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        setAppState(snap.exists() && snap.data().name ? 'main' : 'onboarding');
-      } catch {
-        setAppState('onboarding');
-      }
+    return onAuthStateChanged(auth, (user: User | null) => {
+      setUid(user?.uid ?? null);
+      if (!user) setAppState('onboarding');
     });
-    return unsub;
   }, []);
+
+  // Step 2: Listen to user profile — reacts when profile is created after onboarding
+  useEffect(() => {
+    if (!uid) return;
+    return onSnapshot(doc(db, 'users', uid), (snap) => {
+      setAppState(snap.exists() && snap.data()?.name ? 'main' : 'onboarding');
+    }, () => {
+      setAppState('onboarding');
+    });
+  }, [uid]);
 
   if (appState === 'loading') {
     return (

@@ -70,7 +70,9 @@ async function sendPush(
 }
 
 function fmtTime(ts: admin.firestore.Timestamp): string {
-  return ts.toDate().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return ts.toDate().toLocaleTimeString('he-IL', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+  });
 }
 
 // ─────────────────────────────────────────────────────────

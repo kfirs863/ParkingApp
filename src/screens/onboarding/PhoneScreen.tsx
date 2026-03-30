@@ -1,17 +1,17 @@
 import React, { useState, useRef } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { auth } from '../../config/firebase'; // וודא שהנתיב נכון
-import { PhoneAuthProvider } from 'firebase/auth';
+import { sendOTP, auth } from '../../config/firebase';
 
 // הגדרת צבעים מקומית למניעת שגיאות undefined
 const THEME_COLORS = {
@@ -25,50 +25,77 @@ const THEME_COLORS = {
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const recaptchaVerifier = useRef(null);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+
+  // Convert local Israeli number (05XXXXXXXX) to international format (+9725XXXXXXXX)
+  const toInternational = (local: string): string => {
+    const digits = local.replace(/\D/g, '');
+    if (digits.startsWith('0')) {
+      return `+972${digits.slice(1)}`;
+    }
+    if (digits.startsWith('972')) {
+      return `+${digits}`;
+    }
+    return `+972${digits}`;
+  };
+
+  const isValidPhone = /^05\d{8}$/.test(phoneNumber.replace(/\D/g, ''));
 
   const handleSendCode = async () => {
     if (!phoneNumber) return;
+
+    if (!isValidPhone) {
+      Alert.alert('שגיאה', 'הכנס מספר טלפון ישראלי תקין (05XXXXXXXX)');
+      return;
+    }
+
+    if (!recaptchaVerifier.current) {
+      Alert.alert('שגיאה', 'אימות reCAPTCHA לא מוכן, נסה שוב');
+      return;
+    }
+
     setLoading(true);
     try {
-      const phoneProvider = new PhoneAuthProvider(auth);
-      // לוגיקת שליחת קוד...
-      console.log("Sending code to:", phoneNumber);
-      // navigation.navigate('Verify', { phoneNumber });
-    } catch (error) {
-      console.error(error);
+      const fullPhone = toInternational(phoneNumber);
+      await sendOTP(fullPhone, recaptchaVerifier.current);
+      navigation.navigate('OTP', { phone: fullPhone });
+    } catch (error: any) {
+      console.error('Send OTP error:', error);
+      Alert.alert('שגיאה', error?.message || 'לא ניתן לשלוח קוד, נסה שוב');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={auth.app.options}
+        attemptInvisibleVerification
       />
-      
+
       <View style={styles.content}>
         <Text style={styles.title}>מה המספר שלך?</Text>
         <Text style={styles.subtitle}>נשלח לך קוד אימות ב-SMS</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="מספר טלפון"
+          placeholder="05XXXXXXXX"
           placeholderTextColor="#666"
           keyboardType="phone-pad"
           value={phoneNumber}
           onChangeText={setPhoneNumber}
+          maxLength={10}
         />
 
-        <TouchableOpacity 
-          style={styles.button} 
+        <TouchableOpacity
+          style={[styles.button, !isValidPhone && styles.buttonDisabled]}
           onPress={handleSendCode}
-          disabled={loading}
+          disabled={loading || !isValidPhone}
         >
           {loading ? (
             <ActivityIndicator color="#000" />
@@ -84,7 +111,7 @@ export default function PhoneScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME_COLORS.background, // שימוש במשתנה המקומי הבטוח
+    backgroundColor: THEME_COLORS.background,
   },
   content: {
     flex: 1,
@@ -123,6 +150,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
     fontSize: 18,
