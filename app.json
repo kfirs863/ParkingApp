@@ -38,8 +38,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "YOUR_EXPO_PROJECT_ID"
+        "projectId": "3aea0a64-fdc2-4772-bd79-385a6052debf"
       }
-    }
+    },
+    "owner": "kfirs86"
   }
 }

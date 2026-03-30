@@ -69,7 +69,7 @@ async function registerForPushNotifications(): Promise<void> {
 
   // Get Expo push token — called every launch to catch stale tokens
   const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: 'YOUR_EXPO_PROJECT_ID', // from app.json > extra.eas.projectId
+    projectId: '3aea0a64-fdc2-4772-bd79-385a6052debf', // from app.json > extra.eas.projectId
   });
 
   const token = tokenData.data;
