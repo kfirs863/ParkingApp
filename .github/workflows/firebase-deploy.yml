@@ -29,12 +29,12 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # 3. התקנת תלויות (Dependencies) - נוסף דגל להתעלמות מהתנגשויות גרסאות ב-React Native
+      # 3. התקנת תלויות (Dependencies) - שימוש ב-npm install שמתמודד טוב יותר עם חוסר בקבצי lock
       - name: Install Dependencies
         run: |
-          npm ci --legacy-peer-deps
+          npm install --legacy-peer-deps
           if [ -d "functions" ]; then
-            cd functions && npm ci
+            cd functions && npm install
           fi
 
       # 4. בניית ה-Functions (ממיר TypeScript ל-JavaScript)
