@@ -71,7 +71,7 @@ export default function OTPScreen({ navigation, route }: Props) {
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaRef}
         firebaseConfig={getApp().options}
-        attemptInvisibleVerification
+        attemptInvisibleVerification={false}
       />
       <StepIndicator total={4} current={1} />
 

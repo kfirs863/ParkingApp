@@ -75,7 +75,7 @@ export default function PhoneScreen({ navigation }: any) {
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={auth.app.options}
-        attemptInvisibleVerification
+        attemptInvisibleVerification={false}
       />
 
       <View style={styles.content}>
