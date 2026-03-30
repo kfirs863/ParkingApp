@@ -4,8 +4,7 @@ import {
   Alert, ActivityIndicator, Switch,
 } from 'react-native';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { auth, db, useUserProfile, checkSpotTaken, UserProfile } from '../../config/firebase';
+import { auth, db, signOut, useUserProfile, checkSpotTaken, UserProfile } from '../../config/firebase';
 import { Button, Input } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 
@@ -108,7 +107,7 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert('יציאה', 'האם לצאת מהאפליקציה?', [
       { text: 'ביטול', style: 'cancel' },
-      { text: 'כן, צא', style: 'destructive', onPress: () => signOut(auth) },
+      { text: 'כן, צא', style: 'destructive', onPress: () => signOut() },
     ]);
   };
 

@@ -1,15 +1,10 @@
-import { initializeFirebase } from './src/config/firebase';
-// Must be called before any Firebase usage and before any component renders
-initializeFirebase();
-
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
-import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-import { auth, db } from './src/config/firebase';
+import { db, onAuthStateChanged } from './src/config/firebase';
 import { navigationRef } from './src/navigation/navigationRef';
 import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
@@ -25,7 +20,7 @@ export default function App() {
 
   // Step 1: Track auth state
   useEffect(() => {
-    return onAuthStateChanged(auth, (user: User | null) => {
+    return onAuthStateChanged((user: any) => {
       setUid(user?.uid ?? null);
       if (!user) setAppState('onboarding');
     });
