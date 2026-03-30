@@ -2,11 +2,12 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
-  getReactNativePersistence,
   PhoneAuthProvider,
   signInWithCredential,
   ApplicationVerifier,
 } from 'firebase/auth';
+// @ts-ignore - getReactNativePersistence lives in the RN build of @firebase/auth
+import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.rn.js';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
@@ -28,11 +29,11 @@ const firebaseConfig = {
 // אתחול האפליקציה בבטחה
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// אתחול ה-Auth עם Persistence (פותר את האזהרה ב-Expo Go)
+// אתחול ה-Auth עם AsyncStorage persistence
 let auth: any;
 try {
   auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
+    persistence: getReactNativePersistence(AsyncStorage),
   });
 } catch (e) {
   auth = getAuth(app);
