@@ -53,8 +53,10 @@ export default function DoneScreen({ navigation }: Props) {
         <Button
           label="כניסה לאפליקציה 🚀"
           onPress={() => {
-            // TODO: navigate to MainNavigator
-            // navigation.replace('Main')
+            navigation.getParent()?.reset({
+              index: 0,
+              routes: [{ name: 'Main' as never }],
+            });
           }}
         />
       </Animated.View>

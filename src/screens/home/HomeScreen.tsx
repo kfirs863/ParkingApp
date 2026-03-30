@@ -289,7 +289,7 @@ function CancelApprovalRow({ requestId, approvedAt }: { requestId: string; appro
     <TouchableOpacity style={car.btn} onPress={handleCancel} activeOpacity={0.8}>
       <Text style={car.text}>בטל אישור</Text>
       <View style={car.timer}>
-        <Text style={car.timerText}>{secsLeft}ש'</Text>
+        <Text style={car.timerText}>{secsLeft}שנ'</Text>
       </View>
     </TouchableOpacity>
   );

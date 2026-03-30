@@ -77,12 +77,14 @@ export async function checkSpotTaken(
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
-  await setDoc(doc(db, 'users', user.uid), {
+  const ref = doc(db, 'users', user.uid);
+  const existing = await getDoc(ref);
+  await setDoc(ref, {
     ...profile,
     phone: user.phoneNumber,
-    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+    ...(!existing.exists() ? { createdAt: serverTimestamp() } : {}),
+  }, { merge: true });
 }
 
 export function useUserProfile() {
