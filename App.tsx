@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { db, onAuthStateChanged } from './src/config/firebase';
@@ -45,9 +46,11 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <StatusBar style="light" backgroundColor={colors.bg} />
-      {appState === 'onboarding' ? <OnboardingNavigator /> : <MainNavigator />}
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer ref={navigationRef}>
+        <StatusBar style="light" backgroundColor={colors.bg} />
+        {appState === 'onboarding' ? <OnboardingNavigator /> : <MainNavigator />}
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
