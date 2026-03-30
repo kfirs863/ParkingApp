@@ -1,6 +1,8 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
+  initializeAuth,
+  getReactNativePersistence,
   PhoneAuthProvider,
   signInWithCredential,
   RecaptchaVerifier,
@@ -9,9 +11,12 @@ import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
+import { getReactNativePersistence } from 'firebase/auth/react-native';
+import { getReactNativePersistence } from 'firebase/auth/react-native';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// הגדרות ה-Firebase שלך
 const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
   authDomain: "parkingapp-1fb82.firebaseapp.com",
@@ -22,31 +27,41 @@ const firebaseConfig = {
   measurementId: "G-NXDBL6KYN4"
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// אתחול האפליקציה בבטחה
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// אתחול ה-Auth עם Persistence (פותר את האזהרה ב-Expo Go)
+let auth: any;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+} catch (e) {
+  auth = getAuth(app); // במקרה שכבר אותחל
+}
+
+export { auth };
 export const db = getFirestore(app);
 
 // ─── OTP ──────────────────────────────────────────────────
-// verificationId persisted to AsyncStorage so it survives app restarts
-// between SMS send and code entry.
 const OTP_STORAGE_KEY = 'otp_verification_id';
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
   const provider = new PhoneAuthProvider(auth);
-  // @ts-ignore – use @react-native-firebase/auth on device
-  const recaptcha = new RecaptchaVerifier('recaptcha-container', { size: 'invisible' }, auth);
+  // הערה: בבנייה אמיתית (APK) נשתמש ב-Invisible Recaptcha של Firebase Native
+  // כרגע ב-Expo Go זה משתמש במימוש ה-Web
+  const recaptcha = new RecaptchaVerifier(auth, 'recaptcha-container', { 
+    size: 'invisible' 
+  });
   const id = await provider.verifyPhoneNumber(phoneNumber, recaptcha);
-  // Persist so re-opening the app mid-flow still works
   await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
 }
 
 export async function verifyOTP(code: string): Promise<void> {
-  // Read from storage first — covers the case where app was restarted
   const id = await AsyncStorage.getItem(OTP_STORAGE_KEY);
   if (!id) throw new Error('No verification ID — resend the code');
   const credential = PhoneAuthProvider.credential(id, code);
   await signInWithCredential(auth, credential);
-  // Clean up after successful auth
   await AsyncStorage.removeItem(OTP_STORAGE_KEY);
 }
 
@@ -91,6 +106,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 export function useUserProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
@@ -100,5 +116,6 @@ export function useUserProfile() {
     });
     return unsub;
   }, []);
+  
   return { profile, loading };
 }

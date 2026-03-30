@@ -45,11 +45,11 @@ jobs:
             cd functions && npm run build
           fi
 
-      # 5. פריסה ל-Firebase באמצעות מפתח Service Account (הדרך החדשה והאמינה)
+      # 5. פריסה ל-Firebase באמצעות מפתח Service Account (הוספנו --force כפי שגוגל דרשו)
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only functions,firestore:rules,firestore:indexes
+          args: deploy --only functions,firestore:rules,firestore:indexes --force
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: parkingapp-1fb82
