@@ -2,6 +2,7 @@ name: Deploy to Firebase
 
 # האוטומציה תרוץ בכל פעם שקוד חדש נדחף ל-branch הראשי
 on:
+  workflow_dispatch: # מאפשר הפעלה ידנית מהאתר של GitHub
   push:
     branches:
       - master
@@ -44,11 +45,11 @@ jobs:
             cd functions && npm run build
           fi
 
-      # 5. פריסה ל-Firebase באמצעות הטוקן הסודי
+      # 5. פריסה ל-Firebase באמצעות מפתח Service Account (הדרך החדשה והאמינה)
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only functions,firestore:rules,firestore:indexes
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: parkingapp-1fb82
