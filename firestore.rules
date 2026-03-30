@@ -86,12 +86,7 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isOwner(uid);
 
-      allow update: if isOwner(uid)
-        && (
-          incomingData().ownedSpot == null
-          || incomingData().ownedSpot == existingData().ownedSpot
-          || !exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        );
+      allow update: if isOwner(uid);
 
       allow delete: if false;
     }

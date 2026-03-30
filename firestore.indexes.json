@@ -4,6 +4,24 @@
       "collectionGroup": "parkingRequests",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "requesterId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "toTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "toTime", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "parkingRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
         {
           "fieldPath": "status",
           "order": "ASCENDING"
