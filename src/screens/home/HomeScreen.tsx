@@ -134,7 +134,7 @@ const m = StyleSheet.create({
   sheet: {
     backgroundColor: colors.bgCard,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: spacing.lg, paddingBottom: 40,
+    padding: spacing.lg, paddingBottom: 60,
     borderTopWidth: 1, borderColor: colors.border,
   },
   handle: {
@@ -270,21 +270,7 @@ const cc = StyleSheet.create({
 });
 
 // ─── CancelApprovalRow ────────────────────────────────────
-// Shown to owner on their approved request — disappears after 2 minutes
-function CancelApprovalRow({ requestId, approvedAt }: { requestId: string; approvedAt?: Date }) {
-  const [secsLeft, setSecsLeft] = React.useState(() => {
-    if (!approvedAt) return 0;
-    return Math.max(0, 120 - Math.floor((Date.now() - approvedAt.getTime()) / 1000));
-  });
-
-  useEffect(() => {
-    if (secsLeft <= 0) return;
-    const t = setInterval(() => setSecsLeft((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [secsLeft]);
-
-  if (secsLeft <= 0) return null;
-
+function CancelApprovalRow({ requestId }: { requestId: string }) {
   const handleCancel = () => {
     Alert.alert('בטל אישור', 'לבטל את האישור ולהחזיר את הבקשה לפיד?', [
       { text: 'לא', style: 'cancel' },
@@ -294,11 +280,8 @@ function CancelApprovalRow({ requestId, approvedAt }: { requestId: string; appro
         onPress: async () => {
           try {
             await cancelApproval(requestId);
-          } catch (e: any) {
-            const msg = e?.message === 'CANCEL_WINDOW_EXPIRED'
-              ? 'חלף חלון הביטול (2 דקות)'
-              : 'לא ניתן לבטל';
-            Alert.alert('שגיאה', msg);
+          } catch {
+            Alert.alert('שגיאה', 'לא ניתן לבטל');
           }
         },
       },
@@ -308,27 +291,19 @@ function CancelApprovalRow({ requestId, approvedAt }: { requestId: string; appro
   return (
     <TouchableOpacity style={car.btn} onPress={handleCancel} activeOpacity={0.8}>
       <Text style={car.text}>בטל אישור</Text>
-      <View style={car.timer}>
-        <Text style={car.timerText}>{secsLeft}שנ'</Text>
-      </View>
     </TouchableOpacity>
   );
 }
 
 const car = StyleSheet.create({
   btn: {
-    flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, marginTop: spacing.sm,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: spacing.sm,
     borderWidth: 1, borderColor: colors.error + '60',
     borderRadius: radius.md, paddingVertical: spacing.sm,
     backgroundColor: colors.error + '10',
   },
   text: { ...typography.caption, color: colors.error },
-  timer: {
-    backgroundColor: colors.error + '20', paddingHorizontal: spacing.sm,
-    paddingVertical: 2, borderRadius: radius.full,
-  },
-  timerText: { ...typography.caption, color: colors.error, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });
 
 // ─── Contact helpers ──────────────────────────────────────
@@ -627,7 +602,7 @@ function RequestCard({
 
       {/* Owner can cancel their own approval within 2 minutes */}
       {mode === 'owner' && req.status === 'approved' && req.ownerId === uid && (
-        <CancelApprovalRow requestId={req.id} approvedAt={req.approvedAt} />
+        <CancelApprovalRow requestId={req.id} />
       )}
 
       {mode === 'mine' && (
@@ -746,15 +721,22 @@ export default function HomeScreen({ navigation }: Props) {
     <View style={s.screen}>
       {/* Header */}
       <View style={s.header}>
-        <View>
-          <Text style={s.title}>חניון</Text>
+        <TouchableOpacity
+          style={s.requestBtn}
+          onPress={() => navigation.navigate('Request')}
+          activeOpacity={0.9}
+        >
+          <Text style={s.requestBtnText}>+ בקש חניה</Text>
+        </TouchableOpacity>
+        <View style={s.headerCenter}>
+          <Text style={s.title}>Upper House Parking</Text>
           <Text style={s.sub}>
             {othersReqs.length > 0
               ? othersReqs.length + ' בקשות פתוחות ממתינות'
               : 'אין בקשות פתוחות כרגע'}
           </Text>
         </View>
-        {pendingConfirm && (
+        {pendingConfirm ? (
           <TouchableOpacity
             style={s.alertBadge}
             onPress={() => setConfirmTarget(pendingConfirm)}
@@ -762,7 +744,7 @@ export default function HomeScreen({ navigation }: Props) {
           >
             <Text style={s.alertBadgeText}>🔔 אושרת!</Text>
           </TouchableOpacity>
-        )}
+        ) : <View style={{ width: 80 }} />}
       </View>
 
       {/* Active parking — only visible to the two involved parties */}
@@ -830,12 +812,19 @@ export default function HomeScreen({ navigation }: Props) {
                 </Text>
               </View>
             )}
+            {profile?.ownedSpot && myApprovals.length > 0 && (
+              <View style={s.noSpotBanner}>
+                <Text style={s.noSpotBannerText}>
+                  🅿️ החניה שלך כבר תפוסה — לא ניתן לאשר בקשה נוספת
+                </Text>
+              </View>
+            )}
             {othersReqs.length === 0
               ? <Empty emoji="🅿️" title="אין בקשות פתוחות" sub="כשמישהו יצטרך חניה, הבקשה תופיע כאן" />
               : othersReqs.map((r) => (
                 <RequestCard
                   key={r.id} req={r} mode="owner"
-                  canApprove={!!profile?.ownedSpot}
+                  canApprove={!!profile?.ownedSpot && myApprovals.length === 0}
                   onApprove={() => setApproveTarget(r)}
                 />
               ))
@@ -857,15 +846,6 @@ export default function HomeScreen({ navigation }: Props) {
               ))
         )}
       </ScrollView>
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={s.fab}
-        onPress={() => navigation.navigate('Request')}
-        activeOpacity={0.9}
-      >
-        <Text style={s.fabText}>+ בקש חניה</Text>
-      </TouchableOpacity>
 
       {/* Modals */}
       <ApproveModal
@@ -911,8 +891,15 @@ const s = StyleSheet.create({
     flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingTop: 60, paddingBottom: spacing.md,
   },
-  title: { ...typography.title, color: colors.textPrimary, textAlign: 'right' },
-  sub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  title: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
+  sub: { ...typography.caption, color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
+  requestBtn: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.full, width: 80, alignItems: 'center',
+  },
+  requestBtnText: { ...typography.caption, color: colors.bg, fontWeight: '800', fontSize: 12 },
   alertBadge: {
     backgroundColor: colors.success, paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm, borderRadius: radius.full,
@@ -929,17 +916,8 @@ const s = StyleSheet.create({
   tabText: { ...typography.label, color: colors.textSecondary, textTransform: 'none', fontSize: 13 },
   tabTextActive: { color: colors.bg },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 24 },
   loader: { alignItems: 'center', marginTop: 80 },
-  fab: {
-    position: 'absolute', bottom: 90, alignSelf: 'center',
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
-    borderRadius: radius.full,
-    shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
-  },
-  fabText: { ...typography.body, color: colors.bg, fontWeight: '800' },
   noSpotBanner: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.md,

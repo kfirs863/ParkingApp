@@ -80,7 +80,7 @@ service cloud.firestore {
         && incomingData().status == 'completed';
     }
 
-    // Owner reverts their own approval back to open (within time window)
+    // Owner reverts their own approval back to open (anytime before requester confirms)
     function canOwnerRevertApproval() {
       return existingData().ownerId == request.auth.uid
         && existingData().status == 'approved'

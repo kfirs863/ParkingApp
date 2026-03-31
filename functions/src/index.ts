@@ -269,7 +269,9 @@ export const expireStaleRequests = functions
     staleSnap.docs.forEach((d) => {
       const data = d.data() as ParkingRequest;
       batch.update(d.ref, { status: 'expired', expiredAt: now });
-      if (data.status === 'open' && data.requesterId) {
+
+      // Notify requester
+      if (data.requesterId) {
         pushPromises.push(
           getToken(data.requesterId).then((token) => {
             if (!token) return;
@@ -277,6 +279,20 @@ export const expireStaleRequests = functions
               'הבקשה שלך לא אושרה',
               `הבקשה ל-${fmtTime(data.toTime)} פגה תוקף. שלח בקשה חדשה אם עדיין צריך.`,
               { action: 'expired' }
+            );
+          })
+        );
+      }
+
+      // Notify owner that their spot is free again (only if they had approved)
+      if (data.status === 'approved' && data.ownerId) {
+        pushPromises.push(
+          getToken(data.ownerId).then((token) => {
+            if (!token) return;
+            return sendPush(token, data.ownerId,
+              'החניה שלך פנויה שוב',
+              `${data.requesterName} לא אישר/ה את קבלת החניה בזמן. החניה שלך חופשייה.`,
+              { action: 'freed' }
             );
           })
         );

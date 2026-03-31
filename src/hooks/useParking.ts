@@ -227,8 +227,7 @@ export async function approveRequest(
 }
 
 /**
- * Owner cancels their own approval within the 2-minute window.
- * After that, only the requester can cancel.
+ * Owner cancels their own approval at any time, as long as requester hasn't confirmed yet.
  */
 export async function cancelApproval(requestId: string): Promise<void> {
   const user = auth.currentUser;
@@ -243,13 +242,6 @@ export async function cancelApproval(requestId: string): Promise<void> {
     const data = snap.data();
     if (data.ownerId !== user.uid) throw new Error('NOT_YOUR_APPROVAL');
     if (data.status !== 'approved') throw new Error('CANNOT_CANCEL');
-
-    // ── Enforce 2-minute window ─────────────────────────
-    const approvedAt: Date = data.approvedAt?.toDate();
-    if (approvedAt) {
-      const minsElapsed = (Date.now() - approvedAt.getTime()) / 60000;
-      if (minsElapsed > 2) throw new Error('CANCEL_WINDOW_EXPIRED');
-    }
 
     // Revert to open so another owner can approve
     tx.update(reqRef, {
