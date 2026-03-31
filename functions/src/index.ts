@@ -289,7 +289,7 @@ export const expireStaleRequests = functions
         pushPromises.push(
           getToken(data.ownerId).then((token) => {
             if (!token) return;
-            return sendPush(token, data.ownerId,
+            return sendPush(token, data.ownerId!,
               'החניה שלך פנויה שוב',
               `${data.requesterName} לא אישר/ה את קבלת החניה בזמן. החניה שלך חופשייה.`,
               { action: 'freed' }
