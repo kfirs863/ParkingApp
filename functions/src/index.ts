@@ -75,6 +75,21 @@ function fmtTime(ts: admin.firestore.Timestamp): string {
   });
 }
 
+async function isSpotOccupied(
+  ownerId: string,
+  fromTime: admin.firestore.Timestamp,
+  toTime: admin.firestore.Timestamp
+): Promise<boolean> {
+  const snap = await db
+    .collection('parkingRequests')
+    .where('ownerId', '==', ownerId)
+    .where('status', 'in', ['approved', 'confirmed'])
+    .where('toTime', '>', fromTime)
+    .get();
+  // Client-side check for the other bound (Firestore can't range-filter two fields)
+  return snap.docs.some((d) => d.data().fromTime.toMillis() < toTime.toMillis());
+}
+
 // ─────────────────────────────────────────────────────────
 // TRIGGER: status transitions on parkingRequests
 // ─────────────────────────────────────────────────────────
@@ -171,6 +186,7 @@ export const onNewParkingRequest = functions
       // Client-side check for the other range bound
       if (avail.toTime.toMillis() < req.fromTime.toMillis()) continue;
       if (avail.ownerId === req.requesterId) continue;
+      if (await isSpotOccupied(avail.ownerId, req.fromTime, req.toTime)) continue;
       targetedUids.add(avail.ownerId);
       const token = await getToken(avail.ownerId);
       if (!token) continue;
@@ -190,17 +206,15 @@ export const onNewParkingRequest = functions
     // Step 3: broadcast to remaining opt-in owners
     const ownersSnap = await db.collection('users').where('ownedSpot', '!=', null).get();
 
-    const tokens: { token: string; uid: string }[] = ownersSnap.docs
-      .filter((d) => {
-        const data = d.data() as UserDoc;
-        return (
-          d.id !== req.requesterId &&
-          !targetedUids.has(d.id) &&
-          data.fcmToken &&
-          data.pushGeneral !== false   // respects opt-out preference
-        );
-      })
-      .map((d) => ({ token: d.data().fcmToken as string, uid: d.id }));
+    const tokens: { token: string; uid: string }[] = [];
+    for (const d of ownersSnap.docs) {
+      const data = d.data() as UserDoc;
+      if (d.id === req.requesterId) continue;
+      if (targetedUids.has(d.id)) continue;
+      if (!data.fcmToken || data.pushGeneral === false) continue;
+      if (await isSpotOccupied(d.id, req.fromTime, req.toTime)) continue;
+      tokens.push({ token: data.fcmToken as string, uid: d.id });
+    }
 
     if (tokens.length === 0) return;
 
