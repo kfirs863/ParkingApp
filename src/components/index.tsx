@@ -106,6 +106,100 @@ export const ScreenShell: React.FC<{ children: React.ReactNode }> = ({ children 
   <View style={styles.shell}>{children}</View>
 );
 
+// ─── DateTimePicker ───────────────────────────────────────
+interface DateTimePickerProps {
+  label: string;
+  value: Date;
+  onChange: (d: Date) => void;
+  minDate?: Date;
+  maxDate?: Date;
+}
+
+function startOfDay(d: Date): Date {
+  const s = new Date(d); s.setHours(0, 0, 0, 0); return s;
+}
+
+function dateLabelFor(value: Date): string {
+  const today = startOfDay(new Date());
+  const valueDay = startOfDay(value);
+  const offset = Math.round((valueDay.getTime() - today.getTime()) / 86400000);
+  if (offset === 0) return 'היום';
+  if (offset === 1) return 'מחר';
+  if (offset === 2) return 'עוד יומיים';
+  if (offset >= 3 && offset <= 6) return value.toLocaleDateString('he-IL', { weekday: 'short' });
+  return value.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+}
+
+export const DateTimePicker: React.FC<DateTimePickerProps> = ({ label, value, onChange, minDate, maxDate }) => {
+  const adjustDay  = (days: number) => onChange(new Date(value.getTime() + days * 86400000));
+  const adjustTime = (mins: number) => onChange(new Date(value.getTime() + mins * 60000));
+  const fmtTime = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+  const canGoBack    = !minDate || startOfDay(value) > startOfDay(minDate);
+  const canGoForward = !maxDate || startOfDay(value) < startOfDay(maxDate);
+
+  return (
+    <View style={dtp.block}>
+      {/* Date row */}
+      <View style={[dtp.row, dtp.rowTop]}>
+        <Text style={dtp.label}>{label}</Text>
+        <View style={dtp.controls}>
+          <TouchableOpacity
+            style={[dtp.arrow, !canGoForward && dtp.arrowDisabled]}
+            onPress={() => canGoForward && adjustDay(1)}
+            activeOpacity={0.7}
+          >
+            <Text style={dtp.arrowTxt}>›</Text>
+          </TouchableOpacity>
+          <Text style={[dtp.time, dtp.dateText]}>{dateLabelFor(value)}</Text>
+          <TouchableOpacity
+            style={[dtp.arrow, !canGoBack && dtp.arrowDisabled]}
+            onPress={() => canGoBack && adjustDay(-1)}
+            activeOpacity={0.7}
+          >
+            <Text style={dtp.arrowTxt}>‹</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {/* Time row */}
+      <View style={[dtp.row, dtp.rowBottom]}>
+        <Text style={dtp.label} />
+        <View style={dtp.controls}>
+          <TouchableOpacity style={dtp.arrow} onPress={() => adjustTime(30)} activeOpacity={0.7}>
+            <Text style={dtp.arrowTxt}>+</Text>
+          </TouchableOpacity>
+          <Text style={dtp.time}>{fmtTime(value)}</Text>
+          <TouchableOpacity style={dtp.arrow} onPress={() => adjustTime(-30)} activeOpacity={0.7}>
+            <Text style={dtp.arrowTxt}>−</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const dtp = StyleSheet.create({
+  block:   { marginBottom: spacing.md },
+  row: {
+    flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.bgInput, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  rowTop:    { borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md, borderBottomWidth: 0.5 },
+  rowBottom: { borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md, borderTopWidth: 0.5 },
+  label:    { ...typography.body, color: colors.textSecondary, minWidth: 28 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  arrow: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  arrowDisabled: { opacity: 0.3 },
+  arrowTxt:  { fontSize: 22, color: colors.textPrimary, fontWeight: '300', lineHeight: 26 },
+  time:      { ...typography.subtitle, color: colors.accent, minWidth: 60, textAlign: 'center' },
+  dateText:  { minWidth: 90 },
+});
+
 // ─── Styles ───────────────────────────────────────────────
 const styles = StyleSheet.create({
   // Button

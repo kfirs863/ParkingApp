@@ -100,7 +100,7 @@ service cloud.firestore {
         && incomingData().status == 'open'
         && incomingData().fromTime < incomingData().toTime
         && incomingData().toTime > request.time
-        && incomingData().toTime < request.time + duration.value(24, 'h')
+        && incomingData().toTime < request.time + duration.value(7, 'd')
         && 'requesterName' in incomingData()
         && 'requesterApartment' in incomingData()
         && 'requesterTower' in incomingData();

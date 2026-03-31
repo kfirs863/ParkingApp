@@ -166,10 +166,6 @@ export async function createRequest(params: {
   );
   if (!existing.empty) throw new Error('DUPLICATE_REQUEST');
 
-  // ── 2. Enforce max 6 hours ahead ───────────────────────
-  const maxAllowed = new Date(Date.now() + 6 * 60 * 60 * 1000);
-  if (params.fromTime > maxAllowed) throw new Error('TOO_FAR_AHEAD');
-
   const ref = await addDoc(collection(db, 'parkingRequests'), {
     requesterId: user.uid,
     requesterName: params.requesterProfile.name,
@@ -320,16 +316,35 @@ function toRequest(d: any): ParkingRequest {
 }
 
 export function formatTimeRange(from: Date, to: Date): string {
-  const fmt = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  const isToday = from.toDateString() === new Date().toDateString();
-  const day = isToday ? 'היום' : from.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' });
-  return `${day} · ${fmt(from)} – ${fmt(to)}`;
+  const fmtTime = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const fmtDate = (d: Date) => d.toLocaleDateString('he-IL', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  const today = new Date();
+  const sameDay = from.toDateString() === to.toDateString();
+  if (sameDay) {
+    const isToday = from.toDateString() === today.toDateString();
+    const dayLabel = isToday ? 'היום' : fmtDate(from);
+    return `${dayLabel} · ${fmtTime(from)} – ${fmtTime(to)}`;
+  }
+  const fromIsToday = from.toDateString() === today.toDateString();
+  const fromLabel = fromIsToday ? 'היום' : fmtDate(from);
+  return `${fromLabel} ${fmtTime(from)} – ${fmtDate(to)} ${fmtTime(to)}`;
 }
 
 export function durationLabel(from: Date, to: Date): string {
-  const mins = Math.round((to.getTime() - from.getTime()) / 60000);
-  if (mins < 60) return `${mins} דק'`;
-  return `${(mins / 60).toFixed(1).replace('.0', '')} שעות`;
+  const totalMins = Math.round((to.getTime() - from.getTime()) / 60000);
+  if (totalMins <= 0) return '';
+  if (totalMins < 60) return `${totalMins} דק'`;
+  const totalHours = Math.floor(totalMins / 60);
+  const remMins = totalMins % 60;
+  if (totalHours < 24) {
+    return remMins > 0 ? `${totalHours}:${String(remMins).padStart(2, '0')} שע'` : `${totalHours} שעות`;
+  }
+  const days = Math.floor(totalHours / 24);
+  const remHours = totalHours % 24;
+  const dayWord = days === 1 ? 'יום אחד' : `${days} ימים`;
+  if (remHours === 0 && remMins === 0) return dayWord;
+  if (remHours === 0) return `${dayWord} ${remMins} דק'`;
+  return `${dayWord} ${remHours} שע'`;
 }
 
 export function timeUntil(date: Date): string {

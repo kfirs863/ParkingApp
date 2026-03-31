@@ -8,8 +8,9 @@ import {
   onSnapshot, updateDoc, doc, serverTimestamp, Timestamp, orderBy, getDocs,
 } from 'firebase/firestore';
 import { db, auth, useUserProfile } from '../../config/firebase';
-import { Button } from '../../components';
+import { Button, DateTimePicker } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
+import { formatTimeRange, durationLabel } from '../../hooks/useParking';
 
 // ─── Types ────────────────────────────────────────────────
 interface AvailabilityWindow {
@@ -64,26 +65,6 @@ function HHMMPicker({ label, value, onChange }: {
   );
 }
 
-function DateTimePicker({ label, value, onChange }: {
-  label: string; value: Date; onChange: (d: Date) => void;
-}) {
-  const adjust = (m: number) => onChange(new Date(value.getTime() + m * 60000));
-  const fmt = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  return (
-    <View style={tp.row}>
-      <Text style={tp.label}>{label}</Text>
-      <View style={tp.controls}>
-        <TouchableOpacity style={tp.arrow} onPress={() => adjust(-30)} activeOpacity={0.7}>
-          <Text style={tp.arrowTxt}>−</Text>
-        </TouchableOpacity>
-        <Text style={tp.time}>{fmt(value)}</Text>
-        <TouchableOpacity style={tp.arrow} onPress={() => adjust(30)} activeOpacity={0.7}>
-          <Text style={tp.arrowTxt}>+</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
 
 const tp = StyleSheet.create({
   row: {
@@ -167,6 +148,11 @@ export default function AvailabilityScreen() {
   const [toTime, setToTime]     = useState<Date>(new Date(snap30().getTime() + 2 * 3600000));
   const [saving, setSaving]     = useState(false);
 
+  const handleFromChange = (d: Date) => {
+    setFromTime(d);
+    if (d >= toTime) setToTime(new Date(d.getTime() + 2 * 3600000));
+  };
+
   // Recurring state
   const [rFromHH, setRFromHH]   = useState('08:00');
   const [rToHH, setRToHH]       = useState('17:00');
@@ -177,8 +163,6 @@ export default function AvailabilityScreen() {
 
   const toggleDay = (day: number) =>
     setRDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort());
-
-  const fmt = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
   // ── Add one-off window ─────────────────────────────────
   const handleAddOneOff = async () => {
@@ -306,16 +290,12 @@ export default function AvailabilityScreen() {
             </View>
 
             <Text style={s.sectionLabel}>הוסף חלון</Text>
-            <DateTimePicker label="מ-" value={fromTime} onChange={setFromTime} />
-            <DateTimePicker label="עד" value={toTime}   onChange={setToTime} />
+            <DateTimePicker label="מ-" value={fromTime} onChange={handleFromChange} minDate={new Date()} />
+            <DateTimePicker label="עד"  value={toTime}   onChange={setToTime}        minDate={fromTime} />
 
             {durationMins > 0 && (
               <View style={s.summary}>
-                <Text style={s.summaryText}>
-                  {'⏱️ ' + (durationMins < 60
-                    ? durationMins + " דק'"
-                    : (durationMins/60).toFixed(1).replace('.0','') + ' שעות')}
-                </Text>
+                <Text style={s.summaryText}>{'⏱️ ' + durationLabel(fromTime, toTime)}</Text>
               </View>
             )}
             <Button label="הוסף זמינות" onPress={handleAddOneOff} loading={saving} disabled={durationMins <= 0} />
@@ -329,7 +309,7 @@ export default function AvailabilityScreen() {
                   : windows.filter((w) => !w.isRecurring).map((w) => (
                       <View key={w.id} style={s.windowCard}>
                         <View style={s.windowInfo}>
-                          <Text style={s.windowTime}>{fmt(w.fromTime)} – {fmt(w.toTime)}</Text>
+                          <Text style={s.windowTime}>{formatTimeRange(w.fromTime, w.toTime)}</Text>
                         </View>
                         <TouchableOpacity style={s.windowCancel} onPress={() => handleCancelWindow(w.id)} activeOpacity={0.8}>
                           <Text style={s.windowCancelText}>בטל</Text>

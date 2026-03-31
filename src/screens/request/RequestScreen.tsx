@@ -5,49 +5,13 @@ import {
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../navigation/MainNavigator';
-import { Button, Input } from '../../components';
+import { Button, Input, DateTimePicker } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
-import { createRequest } from '../../hooks/useParking';
+import { createRequest, durationLabel } from '../../hooks/useParking';
 import { useUserProfile } from '../../config/firebase';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Request'> };
 type ParkingType = 'self' | 'guest';
-
-// ─── Time Picker ──────────────────────────────────────────
-function TimePicker({ label, value, onChange }: { label: string; value: Date; onChange: (d: Date) => void }) {
-  const adjust = (m: number) => onChange(new Date(value.getTime() + m * 60000));
-  const fmt = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  return (
-    <View style={tp.row}>
-      <Text style={tp.label}>{label}</Text>
-      <View style={tp.controls}>
-        <TouchableOpacity style={tp.arrow} onPress={() => adjust(-30)} activeOpacity={0.7}>
-          <Text style={tp.arrowTxt}>−</Text>
-        </TouchableOpacity>
-        <Text style={tp.time}>{fmt(value)}</Text>
-        <TouchableOpacity style={tp.arrow} onPress={() => adjust(30)} activeOpacity={0.7}>
-          <Text style={tp.arrowTxt}>+</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-const tp = StyleSheet.create({
-  row: {
-    flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.bgInput, padding: spacing.md,
-    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md,
-  },
-  label: { ...typography.body, color: colors.textSecondary },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  arrow: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  arrowTxt: { fontSize: 22, color: colors.textPrimary, fontWeight: '300', lineHeight: 26 },
-  time: { ...typography.subtitle, color: colors.accent, minWidth: 60, textAlign: 'center' },
-});
 
 // ─── RequestScreen ────────────────────────────────────────
 export default function RequestScreen({ navigation }: Props) {
@@ -59,6 +23,8 @@ export default function RequestScreen({ navigation }: Props) {
     if (rem) d.setMinutes(d.getMinutes() + (30 - rem));
     return d;
   };
+
+  const today7 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return new Date(d.getTime() + 7 * 86400000); };
 
   const [fromTime, setFromTime]     = useState<Date>(snap30());
   const [toTime, setToTime]         = useState<Date>(new Date(snap30().getTime() + 2 * 3600000));
@@ -73,14 +39,15 @@ export default function RequestScreen({ navigation }: Props) {
   const plateNorm = guestPlate.replace(/-/g, '');
   const plateValid = /^\d{7,8}$/.test(plateNorm);
 
-  const maxFrom  = new Date(Date.now() + 6 * 60 * 60 * 1000);
-  const tooFarAhead = fromTime > maxFrom;
-
   const isValid =
     !!profile &&
     durationMins > 0 &&
-    !tooFarAhead &&
     (parkingType === 'self' || (parkingType === 'guest' && plateValid));
+
+  const handleFromChange = (d: Date) => {
+    setFromTime(d);
+    if (d >= toTime) setToTime(new Date(d.getTime() + 2 * 3600000));
+  };
 
   const howSteps = parkingType === 'self'
     ? [
@@ -127,12 +94,6 @@ export default function RequestScreen({ navigation }: Props) {
         Alert.alert(
           'יש לך בקשה פעילה',
           'כבר שלחת בקשת חניה פתוחה. בטל אותה לפני שתשלח בקשה חדשה.',
-          [{ text: 'הבנתי' }]
-        );
-      } else if (e?.message === 'TOO_FAR_AHEAD') {
-        Alert.alert(
-          'זמן רחוק מדי',
-          'ניתן לשלוח בקשות לשעות הקרובות בלבד (עד 6 שעות קדימה).',
           [{ text: 'הבנתי' }]
         );
       } else {
@@ -204,26 +165,26 @@ export default function RequestScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* ── Time ── */}
-        <Text style={s.sectionLabel}>לכמה זמן?</Text>
-        <TimePicker label="מ-" value={fromTime} onChange={setFromTime} />
-        <TimePicker label="עד" value={toTime} onChange={setToTime} />
+        {/* ── Date & Time ── */}
+        <Text style={s.sectionLabel}>מתי?</Text>
+        <DateTimePicker
+          label="מ-"
+          value={fromTime}
+          onChange={handleFromChange}
+          minDate={new Date()}
+          maxDate={today7()}
+        />
+        <DateTimePicker
+          label="עד"
+          value={toTime}
+          onChange={setToTime}
+          minDate={fromTime}
+          maxDate={today7()}
+        />
 
-        {tooFarAhead && (
-          <View style={[s.summary, s.summaryWarn]}>
-            <Text style={[s.summaryText, { color: colors.error }]}>
-              ⚠️ ניתן לשלוח בקשות עד 6 שעות קדימה בלבד
-            </Text>
-          </View>
-        )}
-
-        {durationMins > 0 && !tooFarAhead && (
+        {durationMins > 0 && (
           <View style={s.summary}>
-            <Text style={s.summaryText}>
-              {'⏱️ ' + (durationMins < 60
-                ? durationMins + " דק'"
-                : (durationMins / 60).toFixed(1).replace('.0', '') + ' שעות')}
-            </Text>
+            <Text style={s.summaryText}>{'⏱️ ' + durationLabel(fromTime, toTime)}</Text>
           </View>
         )}
 
@@ -313,7 +274,6 @@ const s = StyleSheet.create({
     alignItems: 'flex-end', marginBottom: spacing.lg,
   },
   summaryText: { ...typography.body, color: colors.accent, fontWeight: '700' },
-  summaryWarn: { backgroundColor: colors.error + '15', borderColor: colors.error + '40' },
 
   // How it works
   howWrap: {
