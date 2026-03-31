@@ -17,10 +17,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourbuilding.parkingapp"
+      "bundleIdentifier": "kfirs863.ParkingApp"
     },
     "android": {
-      "package": "com.yourbuilding.parkingapp",
+      "package": "kfirs863.ParkingApp",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
