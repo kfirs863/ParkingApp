@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,8 +10,7 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
-import { sendOTP, auth } from '../../config/firebase';
+import { sendOTP } from '../../config/firebase';
 
 // הגדרת צבעים מקומית למניעת שגיאות undefined
 const THEME_COLORS = {
@@ -25,7 +24,6 @@ const THEME_COLORS = {
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   // Convert local Israeli number (05XXXXXXXX) to international format (+9725XXXXXXXX)
   const toInternational = (local: string): string => {
@@ -49,15 +47,10 @@ export default function PhoneScreen({ navigation }: any) {
       return;
     }
 
-    if (!recaptchaVerifier.current) {
-      Alert.alert('שגיאה', 'אימות reCAPTCHA לא מוכן, נסה שוב');
-      return;
-    }
-
     setLoading(true);
     try {
       const fullPhone = toInternational(phoneNumber);
-      await sendOTP(fullPhone, recaptchaVerifier.current);
+      await sendOTP(fullPhone);
       navigation.navigate('OTP', { phone: fullPhone });
     } catch (error: any) {
       console.error('Send OTP error:', error);
@@ -72,12 +65,6 @@ export default function PhoneScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={auth.app.options}
-        attemptInvisibleVerification={false}
-      />
-
       <View style={styles.content}>
         <Text style={styles.title}>מה המספר שלך?</Text>
         <Text style={styles.subtitle}>נשלח לך קוד אימות ב-SMS</Text>

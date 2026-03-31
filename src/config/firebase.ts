@@ -6,7 +6,6 @@ import {
   signInWithCredential as _signInWithCredential,
   signOut as _signOut,
   onAuthStateChanged as _onAuthStateChanged,
-  ApplicationVerifier,
   User,
   Persistence,
 } from 'firebase/auth';
@@ -57,9 +56,11 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
 // ─── OTP ──────────────────────────────────────────────────
 const OTP_STORAGE_KEY = 'otp_verification_id';
 
-export async function sendOTP(phoneNumber: string, verifier: ApplicationVerifier): Promise<void> {
+export async function sendOTP(phoneNumber: string): Promise<void> {
   const provider = new PhoneAuthProvider(auth);
-  const id = await provider.verifyPhoneNumber(phoneNumber, verifier);
+  // On React Native, Firebase handles reCAPTCHA natively — pass a dummy verifier
+  const fakeVerifier = { type: 'recaptcha', verify: async () => '' } as any;
+  const id = await provider.verifyPhoneNumber(phoneNumber, fakeVerifier);
   await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
 }
 
