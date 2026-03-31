@@ -59,7 +59,7 @@ const OTP_STORAGE_KEY = 'otp_verification_id';
 export async function sendOTP(phoneNumber: string): Promise<void> {
   const provider = new PhoneAuthProvider(auth);
   // On React Native, Firebase handles reCAPTCHA natively — pass a dummy verifier
-  const fakeVerifier = { type: 'recaptcha', verify: async () => '' } as any;
+  const fakeVerifier = { type: 'recaptcha', verify: async () => '', _reset: () => {} } as any;
   const id = await provider.verifyPhoneNumber(phoneNumber, fakeVerifier);
   await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
 }

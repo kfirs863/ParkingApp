@@ -73,6 +73,13 @@ service cloud.firestore {
         && incomingData().ownerId == existingData().ownerId;
     }
 
+    // Requester marks confirmed session as completed (left early)
+    function canRequesterComplete() {
+      return existingData().requesterId == request.auth.uid
+        && existingData().status == 'confirmed'
+        && incomingData().status == 'completed';
+    }
+
     // Owner reverts their own approval back to open (within time window)
     function canOwnerRevertApproval() {
       return existingData().ownerId == request.auth.uid
@@ -111,6 +118,7 @@ service cloud.firestore {
         || canRequesterConfirm()
         || canEitherCancel()
         || canOwnerRevertApproval()
+        || canRequesterComplete()
       );
 
       allow delete: if false;

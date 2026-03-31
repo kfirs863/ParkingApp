@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Alert, Modal,
+  TouchableOpacity, ActivityIndicator, Alert, Modal, Linking,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { MainTabParamList } from '../../navigation/MainNavigator';
 import { colors, spacing, radius, typography } from '../../theme';
 import {
-  useOpenRequests, useMyRequests,
-  approveRequest, cancelApproval, confirmParking, cancelRequest,
+  useOpenRequests, useMyRequests, useMyApprovals,
+  approveRequest, cancelApproval, confirmParking, cancelRequest, completeParking,
   formatTimeRange, durationLabel, timeUntil, statusMeta,
   ParkingRequest,
 } from '../../hooks/useParking';
@@ -86,6 +86,15 @@ function ApproveModal({
           {'\n'}{'דירה ' + request.requesterApartment + ' \u00b7 מגדל ' + request.requesterTower}
           {'\n'}{formatTimeRange(request.fromTime, request.toTime)}
         </Text>
+        {request.requesterPhone ? (
+          <View style={{ marginBottom: spacing.lg }}>
+            <Text style={m.label}>טלפון הדייר</Text>
+            <Text style={{ ...typography.body, color: colors.accent, textAlign: 'right', marginBottom: 4 }}>
+              {request.requesterPhone}
+            </Text>
+            <ContactButtons phone={request.requesterPhone} />
+          </View>
+        ) : null}
 
         {/* Spot info — read-only from profile */}
         <View style={m.spotDisplay}>
@@ -170,18 +179,22 @@ const m = StyleSheet.create({
 
 // ─── Confirm Car Modal ────────────────────────────────────
 function ConfirmCarModal({
-  request, visible, onClose,
+  request, visible, onClose, userCarNumbers,
 }: {
   request: ParkingRequest | null;
   visible: boolean;
   onClose: () => void;
+  userCarNumbers?: string[];
 }) {
   const [carNumber, setCarNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Reset form state when a different request is opened
+  // Pre-fill with first car from profile, reset when request changes
   useEffect(() => {
-    if (visible) { setCarNumber(''); setLoading(false); }
+    if (visible) {
+      setCarNumber(userCarNumbers?.[0] ?? '');
+      setLoading(false);
+    }
   }, [visible, request?.id]);
 
   if (!request) return null;
@@ -216,8 +229,9 @@ function ConfirmCarModal({
             <Text style={{ color: colors.accent, fontWeight: '700' }}>{request.spotNumber}</Text>
             {'\n'}{'של ' + request.ownerName + ' (דירה ' + request.ownerApartment + ', מגדל ' + request.ownerTower + ')'}
           </Text>
+          {request.ownerPhone ? <ContactButtons phone={request.ownerPhone} style={{ width: '100%' }} /> : null}
         </View>
-        <Text style={m.label}>הכנס מספר לוחית הרישוי שלך</Text>
+        <Text style={m.label}>מספר לוחית הרישוי שלך</Text>
         <Input
           value={carNumber}
           onChangeText={setCarNumber}
@@ -317,11 +331,228 @@ const car = StyleSheet.create({
   timerText: { ...typography.caption, color: colors.error, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });
 
+// ─── Contact helpers ──────────────────────────────────────
+function callPhone(phone: string) {
+  Linking.openURL(`tel:${phone}`);
+}
+function openWhatsApp(phone: string) {
+  // Remove leading + for wa.me URL
+  const clean = phone.replace(/^\+/, '');
+  Linking.openURL(`https://wa.me/${clean}`);
+}
+
+function ContactButtons({ phone, style }: { phone: string; style?: object }) {
+  return (
+    <View style={[ct.row, style]}>
+      <TouchableOpacity style={ct.btn} onPress={() => callPhone(phone)} activeOpacity={0.8}>
+        <Text style={ct.btnText}>📞 התקשר</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[ct.btn, ct.waBtn]} onPress={() => openWhatsApp(phone)} activeOpacity={0.8}>
+        <Text style={ct.btnText}>💬 WhatsApp</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const ct = StyleSheet.create({
+  row: { flexDirection: 'row-reverse', gap: spacing.sm, marginTop: spacing.sm },
+  btn: {
+    flex: 1, paddingVertical: 10, borderRadius: radius.md,
+    backgroundColor: colors.bgInput, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  waBtn: { borderColor: '#25D366' + '60', backgroundColor: '#25D36615' },
+  btnText: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
+});
+
+// ─── Active Session Modal ─────────────────────────────────
+function ActiveSessionModal({
+  session, visible, onClose, isOwner,
+}: {
+  session: any;
+  visible: boolean;
+  onClose: () => void;
+  isOwner: boolean;
+}) {
+  if (!session) return null;
+
+  const otherName    = isOwner ? session.requesterName    : session.ownerName;
+  const otherApt     = isOwner ? session.requesterApartment : session.ownerApartment;
+  const otherTower   = isOwner ? session.requesterTower   : session.ownerTower;
+  const otherPhone   = isOwner ? session.requesterPhone   : session.ownerPhone;
+  const carNumber    = session.carNumber;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={m.sheet}>
+        <View style={m.handle} />
+        <Text style={m.title}>פרטי חניה פעילה</Text>
+
+        <View style={as.section}>
+          <Text style={as.sectionLabel}>חניה</Text>
+          <Text style={as.bigNum}>{session.spotNumber}</Text>
+        </View>
+
+        <View style={as.section}>
+          <Text style={as.sectionLabel}>{isOwner ? 'החונה' : 'בעל החניה'}</Text>
+          <Text style={as.name}>{otherName}</Text>
+          <Text style={as.meta}>{'דירה ' + otherApt + ' · מגדל ' + otherTower}</Text>
+          {otherPhone ? (
+            <>
+              <Text style={as.phone}>{otherPhone}</Text>
+              <ContactButtons phone={otherPhone} />
+            </>
+          ) : null}
+        </View>
+
+        {carNumber && (
+          <View style={as.section}>
+            <Text style={as.sectionLabel}>רכב</Text>
+            <Text style={as.name}>{formatGuestPlate(carNumber)}</Text>
+          </View>
+        )}
+
+        {isOwner && otherPhone ? (
+          <TouchableOpacity
+            style={as.urgentBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              const msg = `שלום ${otherName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
+              Linking.openURL(`https://wa.me/${otherPhone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`);
+            }}
+          >
+            <Text style={as.urgentBtnText}>🚨 בקש לפנות את החניה בדחיפות</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {!isOwner && (
+          <TouchableOpacity
+            style={as.urgentBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              Alert.alert(
+                'יציאה מוקדמת',
+                'לסמן שסיימת את החניה ולסגור את הבקשה?',
+                [
+                  { text: 'ביטול', style: 'cancel' },
+                  {
+                    text: 'כן, סיימתי',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await completeParking(session.id);
+                        onClose();
+                      } catch (e: any) {
+                        console.error('completeParking error:', e);
+                        Alert.alert('שגיאה', e?.message ?? 'לא ניתן לסגור את הבקשה');
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={as.urgentBtnText}>🚗 יצאתי מוקדם — סגור את החניה</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity onPress={onClose} style={m.cancel}>
+          <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
+const as = StyleSheet.create({
+  section: {
+    backgroundColor: colors.bgInput, borderRadius: radius.md,
+    padding: spacing.md, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'flex-end',
+  },
+  sectionLabel: { ...typography.caption, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase' },
+  bigNum: { fontSize: 36, fontWeight: '900', color: colors.accent },
+  name: { ...typography.subtitle, color: colors.textPrimary },
+  meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  phone: { ...typography.body, color: colors.accent, marginTop: spacing.sm, fontWeight: '600' },
+  urgentBtn: {
+    backgroundColor: colors.error + '15', borderWidth: 1, borderColor: colors.error + '60',
+    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginBottom: spacing.md,
+  },
+  urgentBtnText: { ...typography.body, color: colors.error, fontWeight: '700' },
+});
+
 // ─── Helper ───────────────────────────────────────────────
 function formatGuestPlate(d: string): string {
   if (d.length === 7) return d.slice(0, 2) + '-' + d.slice(2, 5) + '-' + d.slice(5);
   if (d.length === 8) return d.slice(0, 3) + '-' + d.slice(3, 5) + '-' + d.slice(5);
   return d;
+}
+
+// ─── Gave Parking Modal ───────────────────────────────────
+function GaveModal({ request, visible, onClose }: {
+  request: ParkingRequest | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  if (!request) return null;
+  const phone = request.requesterPhone;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={m.sheet}>
+        <View style={m.handle} />
+        <Text style={m.title}>פרטי החונה</Text>
+
+        <View style={as.section}>
+          <Text style={as.sectionLabel}>שם</Text>
+          <Text style={as.name}>{request.requesterName}</Text>
+          <Text style={as.meta}>{'דירה ' + request.requesterApartment + ' · מגדל ' + request.requesterTower}</Text>
+        </View>
+
+        <View style={as.section}>
+          <Text style={as.sectionLabel}>חניה · זמן</Text>
+          <Text style={as.name}>{request.spotNumber}</Text>
+          <Text style={as.meta}>{formatTimeRange(request.fromTime, request.toTime)}</Text>
+        </View>
+
+        {request.carNumber && (
+          <View style={as.section}>
+            <Text style={as.sectionLabel}>רכב</Text>
+            <Text style={as.name}>{formatGuestPlate(request.carNumber)}</Text>
+          </View>
+        )}
+
+        {phone ? (
+          <View style={as.section}>
+            <Text style={as.sectionLabel}>טלפון</Text>
+            <Text style={as.phone}>{phone}</Text>
+            <ContactButtons phone={phone} />
+          </View>
+        ) : null}
+
+        {phone ? (
+          <TouchableOpacity
+            style={as.urgentBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              const msg = `שלום ${request.requesterName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
+              Linking.openURL(`https://wa.me/${phone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`);
+            }}
+          >
+            <Text style={as.urgentBtnText}>🚨 בקש לפנות את החניה בדחיפות</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity onPress={onClose} style={m.cancel}>
+          <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
 }
 
 // ─── Request Card ─────────────────────────────────────────
@@ -488,11 +719,14 @@ export default function HomeScreen({ navigation }: Props) {
 
   const { requests: openReqs, loading: l1 } = useOpenRequests();
   const { requests: myReqs, loading: l2 } = useMyRequests();
-  const { profile } = useUserProfile();   // current user's profile, including ownedSpot
-  const { session: activeSession } = useActiveParking(); // confirmed parking relevant to me
-  const [tab, setTab] = useState<'all' | 'mine'>('all');
+  const { requests: myApprovals, loading: l3 } = useMyApprovals();
+  const { profile } = useUserProfile();
+  const { session: activeSession } = useActiveParking();
+  const [tab, setTab] = useState<'all' | 'mine' | 'gave'>('all');
   const [approveTarget, setApproveTarget] = useState<ParkingRequest | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ParkingRequest | null>(null);
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [gaveTarget, setGaveTarget] = useState<ParkingRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const uid = auth.currentUser?.uid;
@@ -537,6 +771,7 @@ export default function HomeScreen({ navigation }: Props) {
           requestId={activeSession.id}
           spotNumber={activeSession.spotNumber ?? ''}
           endTime={activeSession.toTime}
+          onPress={() => setSessionModalOpen(true)}
         />
       )}
 
@@ -548,7 +783,7 @@ export default function HomeScreen({ navigation }: Props) {
           activeOpacity={0.8}
         >
           <Text style={[s.tabText, tab === 'all' && s.tabTextActive]}>
-            {'כל הבקשות' + (othersReqs.length > 0 ? ' (' + othersReqs.length + ')' : '')}
+            {'בקשות' + (othersReqs.length > 0 ? ' (' + othersReqs.length + ')' : '')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -557,7 +792,16 @@ export default function HomeScreen({ navigation }: Props) {
           activeOpacity={0.8}
         >
           <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>
-            {'הבקשות שלי' + (activeMyReqs.length > 0 ? ' (' + activeMyReqs.length + ')' : '')}
+            {'ביקשתי' + (activeMyReqs.length > 0 ? ' (' + activeMyReqs.length + ')' : '')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.tab, tab === 'gave' && s.tabActive]}
+          onPress={() => setTab('gave')}
+          activeOpacity={0.8}
+        >
+          <Text style={[s.tabText, tab === 'gave' && s.tabTextActive]}>
+            {'נתתי' + (myApprovals.length > 0 ? ' (' + myApprovals.length + ')' : '')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -575,7 +819,7 @@ export default function HomeScreen({ navigation }: Props) {
         }
         showsVerticalScrollIndicator={false}
       >
-        {(l1 || l2) ? (
+        {(l1 || l2 || l3) ? (
           <View style={s.loader}><ActivityIndicator size="large" color={colors.accent} /></View>
         ) : tab === 'all' ? (
           <>
@@ -597,11 +841,19 @@ export default function HomeScreen({ navigation }: Props) {
               ))
             }
           </>
-        ) : (
+        ) : tab === 'mine' ? (
           myReqs.length === 0
             ? <Empty emoji="🙋" title="לא שלחת בקשות" sub="לחץ על 'בקש חניה' כשאתה צריך מקום" />
             : myReqs.map((r) => (
                 <RequestCard key={r.id} req={r} mode="mine" onConfirm={() => setConfirmTarget(r)} />
+              ))
+        ) : (
+          myApprovals.length === 0
+            ? <Empty emoji="🤝" title="לא אישרת בקשות" sub="כשתאשר חניה למישהו, היא תופיע כאן" />
+            : myApprovals.map((r) => (
+                <TouchableOpacity key={r.id} onPress={() => setGaveTarget(r)} activeOpacity={0.85}>
+                  <RequestCard req={r} mode="owner" canApprove={false} />
+                </TouchableOpacity>
               ))
         )}
       </ScrollView>
@@ -626,6 +878,18 @@ export default function HomeScreen({ navigation }: Props) {
         request={confirmTarget}
         visible={!!confirmTarget}
         onClose={() => setConfirmTarget(null)}
+        userCarNumbers={profile?.carNumbers}
+      />
+      <ActiveSessionModal
+        session={activeSession}
+        visible={sessionModalOpen}
+        onClose={() => setSessionModalOpen(false)}
+        isOwner={activeSession?.ownerId === uid}
+      />
+      <GaveModal
+        request={gaveTarget}
+        visible={!!gaveTarget}
+        onClose={() => setGaveTarget(null)}
       />
     </View>
   );

@@ -13,7 +13,8 @@ export type RequestStatus =
   | 'approved'
   | 'confirmed'
   | 'cancelled'
-  | 'expired';
+  | 'expired'
+  | 'completed';
 
 export interface ParkingRequest {
   id: string;
@@ -21,6 +22,7 @@ export interface ParkingRequest {
   requesterName: string;
   requesterApartment: string;
   requesterTower: string;
+  requesterPhone?: string;
   fromTime: Date;
   toTime: Date;
   status: RequestStatus;
@@ -103,18 +105,19 @@ export function useActiveParking() {
     const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
 
+    const isActive = (r: ParkingRequest) =>
+      r.status === 'confirmed' && r.toTime.getTime() > Date.now();
+
     // Two queries: one as requester, one as owner
     const qRequester = query(
       collection(db, 'parkingRequests'),
       where('status', '==', 'confirmed'),
       where('requesterId', '==', uid),
-      where('toTime', '>', Timestamp.now())
     );
     const qOwner = query(
       collection(db, 'parkingRequests'),
       where('status', '==', 'confirmed'),
       where('ownerId', '==', uid),
-      where('toTime', '>', Timestamp.now())
     );
 
     let requesterResult: ParkingRequest | null = null;
@@ -128,12 +131,12 @@ export function useActiveParking() {
     };
 
     const unsub1 = onSnapshot(qRequester, (snap) => {
-      requesterResult = snap.docs.map(toRequest)[0] ?? null;
+      requesterResult = snap.docs.map(toRequest).find(isActive) ?? null;
       requesterReady = true;
       update();
     });
     const unsub2 = onSnapshot(qOwner, (snap) => {
-      ownerResult = snap.docs.map(toRequest)[0] ?? null;
+      ownerResult = snap.docs.map(toRequest).find(isActive) ?? null;
       ownerReady = true;
       update();
     });
@@ -171,6 +174,7 @@ export async function createRequest(params: {
     requesterName: params.requesterProfile.name,
     requesterApartment: params.requesterProfile.apartment,
     requesterTower: params.requesterProfile.tower,
+    requesterPhone: user.phoneNumber ?? '',
     fromTime: Timestamp.fromDate(params.fromTime),
     toTime: Timestamp.fromDate(params.toTime),
     status: 'open',
@@ -276,6 +280,13 @@ export async function cancelRequest(requestId: string): Promise<void> {
   });
 }
 
+export async function completeParking(requestId: string): Promise<void> {
+  await updateDoc(doc(db, 'parkingRequests', requestId), {
+    status: 'completed',
+    toTime: Timestamp.fromDate(new Date()),
+  });
+}
+
 /** Publish a one-off availability window (owner offers their spot) */
 export async function createOffer(params: {
   spotNumber: string;
@@ -362,8 +373,9 @@ export function statusMeta(status: RequestStatus): { text: string; color: string
     open:      { text: 'ממתין לאישור', color: '#F5A623' },
     approved:  { text: 'אושר! הכנס מספר רכב', color: '#34C98A' },
     confirmed: { text: 'חניה פעילה ✓', color: '#34C98A' },
-    cancelled: { text: 'בוטל', color: '#8888A0' },
-    expired:   { text: 'פג תוקף', color: '#8888A0' },
+    cancelled:  { text: 'בוטל', color: '#8888A0' },
+    expired:    { text: 'פג תוקף', color: '#8888A0' },
+    completed:  { text: 'הסתיימה', color: '#34C98A' },
   };
   return map[status];
 }
