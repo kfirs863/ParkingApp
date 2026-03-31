@@ -6,12 +6,9 @@ import { colors, spacing } from '../theme';
 import HomeScreen from '../screens/home/HomeScreen';
 import RequestScreen from '../screens/request/RequestScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
-import AvailabilityScreen from '../screens/availability/AvailabilityScreen';
-
 export type MainTabParamList = {
   Home: { openConfirm?: string } | undefined;
   Request: undefined;
-  Availability: undefined;
   Profile: undefined;
 };
 
@@ -61,12 +58,7 @@ export default function MainNavigator() {
         component={RequestScreen}
         options={{ tabBarIcon: ({ focused }) => <TabIcon label="בקש חניה" emoji="🙋" focused={focused} /> }}
       />
-      <Tab.Screen
-        name="Availability"
-        component={AvailabilityScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="זמינות" emoji="🟢" focused={focused} /> }}
-      />
-      <Tab.Screen
+<Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{ tabBarIcon: ({ focused }) => <TabIcon label="פרופיל" emoji="👤" focused={focused} /> }}

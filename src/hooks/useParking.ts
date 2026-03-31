@@ -280,29 +280,6 @@ export async function completeParking(requestId: string): Promise<void> {
 }
 
 /** Publish a one-off availability window (owner offers their spot) */
-export async function createOffer(params: {
-  spotNumber: string;
-  fromTime: Date;
-  toTime: Date;
-  ownerProfile: { name: string; apartment: string; tower: string };
-}): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('Not authenticated');
-
-  const ref = await addDoc(collection(db, 'spotAvailability'), {
-    ownerId: user.uid,
-    ownerName: params.ownerProfile.name,
-    ownerApartment: params.ownerProfile.apartment,
-    ownerTower: params.ownerProfile.tower,
-    spotNumber: params.spotNumber,
-    fromTime: Timestamp.fromDate(params.fromTime),
-    toTime: Timestamp.fromDate(params.toTime),
-    status: 'active',
-    isRecurring: false,
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
-}
 
 // ─── Helpers ──────────────────────────────────────────────
 
