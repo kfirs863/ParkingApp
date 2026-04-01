@@ -109,16 +109,16 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 export function useUserProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
     const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
       setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [uid]);
 
   return { profile, loading };
 }

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, spacing, radius, typography } from '../theme';
-import { db } from '../config/firebase'; // כאן כבר הוגדר db
-import { doc, onSnapshot } from 'firebase/firestore';
 
 interface ActiveParkingCardProps {
   requestId: string;
@@ -79,7 +77,6 @@ export const ActiveParkingCard: React.FC<ActiveParkingCardProps> = ({
   );
 };
 
-// שינינו את שם המשתנה מ-db ל-s כדי למנוע התנגשות עם ה-Firebase db
 const s = StyleSheet.create({
   card: {
     backgroundColor: colors.bgCard,

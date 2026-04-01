@@ -132,7 +132,12 @@ function dateLabelFor(value: Date): string {
 
 export const DateTimePicker: React.FC<DateTimePickerProps> = ({ label, value, onChange, minDate, maxDate }) => {
   const adjustDay  = (days: number) => onChange(new Date(value.getTime() + days * 86400000));
-  const adjustTime = (mins: number) => onChange(new Date(value.getTime() + mins * 60000));
+  const adjustTime = (mins: number) => {
+    const newDate = new Date(value.getTime() + mins * 60000);
+    if (minDate && newDate < minDate) return;
+    if (maxDate && newDate > maxDate) return;
+    onChange(newDate);
+  };
   const fmtTime = (d: Date) => d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
   const canGoBack    = !minDate || startOfDay(value) > startOfDay(minDate);

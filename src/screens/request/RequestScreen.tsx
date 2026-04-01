@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Alert,
@@ -32,6 +32,7 @@ export default function RequestScreen({ navigation }: Props) {
   const [guestPlate, setGuestPlate] = useState('');
   const [plateError, setPlateError] = useState('');
   const [loading, setLoading]       = useState(false);
+  const submittingRef = useRef(false);
 
   const durationMins = Math.round((toTime.getTime() - fromTime.getTime()) / 60000);
 
@@ -64,11 +65,13 @@ export default function RequestScreen({ navigation }: Props) {
       ];
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
     if (parkingType === 'guest' && !plateValid) {
       setPlateError('מספר לוחית תקין: 7-8 ספרות');
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     try {
       await createRequest({
@@ -101,6 +104,7 @@ export default function RequestScreen({ navigation }: Props) {
       }
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 

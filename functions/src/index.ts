@@ -1,10 +1,10 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import fetch from 'node-fetch';
 
 admin.initializeApp();
 
 const db = admin.firestore();
-const messaging = admin.messaging();
 
 // ─── Types ────────────────────────────────────────────────
 interface ParkingRequest {
@@ -46,26 +46,33 @@ async function sendPush(
   data?: Record<string, string>
 ): Promise<void> {
   try {
-    await messaging.send({
-      token,
-      notification: { title, body },
-      data: data ?? {},
-      android: {
-        priority: 'high',
-        notification: { channelId: 'parking_alerts', sound: 'default' },
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-      apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+      body: JSON.stringify({
+        to: token,
+        title,
+        body,
+        data: data ?? {},
+        sound: 'default',
+        channelId: 'parking_alerts',
+        priority: 'high',
+      }),
     });
-  } catch (err: any) {
-    if (
-      err.code === 'messaging/registration-token-not-registered' ||
-      err.code === 'messaging/invalid-registration-token'
-    ) {
-      await db.collection('users').doc(uid).update({ fcmToken: null });
-      functions.logger.warn(`Stale FCM token removed for uid=${uid}`);
-    } else {
-      functions.logger.error('FCM send failed', err);
+    const result = await res.json() as any;
+    if (result.data?.status === 'error') {
+      if (result.data.details?.error === 'DeviceNotRegistered') {
+        await db.collection('users').doc(uid).update({ fcmToken: null });
+        functions.logger.warn(`Stale Expo token removed for uid=${uid}`);
+      } else {
+        functions.logger.error('Expo push error', result.data);
+      }
     }
+  } catch (err) {
+    functions.logger.error('Expo push send failed', err);
   }
 }
 
@@ -218,31 +225,39 @@ export const onNewParkingRequest = functions
 
     if (tokens.length === 0) return;
 
-    const BATCH = 500;
+    const BATCH = 100; // Expo recommends max 100 per request
     for (let i = 0; i < tokens.length; i += BATCH) {
       const slice = tokens.slice(i, i + BATCH);
       try {
-        const result = await messaging.sendEachForMulticast({
-          tokens: slice.map((t) => t.token),
-          notification: {
-            title: `${req.requesterName} מחפש/ת חניה`,
-            body: `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
-          },
+        const messages = slice.map((t) => ({
+          to: t.token,
+          title: `${req.requesterName} מחפש/ת חניה`,
+          body: `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
           data: { requestId: snap.id, action: 'approve' },
-          android: {
-            priority: 'high',
-            notification: { channelId: 'parking_alerts', sound: 'default' },
+          sound: 'default' as const,
+          channelId: 'parking_alerts',
+          priority: 'high' as const,
+        }));
+        const res = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
+          body: JSON.stringify(messages),
         });
+        const results = await res.json() as any;
         // Clean up stale tokens
-        result.responses.forEach((resp, idx) => {
-          if (!resp.success &&
-              resp.error?.code === 'messaging/registration-token-not-registered') {
-            db.collection('users').doc(slice[idx].uid).update({ fcmToken: null });
-          }
-        });
+        if (Array.isArray(results.data)) {
+          results.data.forEach((receipt: any, idx: number) => {
+            if (receipt.status === 'error' &&
+                receipt.details?.error === 'DeviceNotRegistered') {
+              db.collection('users').doc(slice[idx].uid).update({ fcmToken: null });
+            }
+          });
+        }
       } catch (err) {
-        functions.logger.error('Multicast failed', err);
+        functions.logger.error('Expo multicast failed', err);
       }
     }
   });

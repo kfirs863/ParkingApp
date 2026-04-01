@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot,
   addDoc, updateDoc, doc, getDocs, serverTimestamp,
-  orderBy, Timestamp, runTransaction, getDoc,
+  orderBy, Timestamp, runTransaction, getDoc, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 
@@ -49,7 +49,8 @@ export function useOpenRequests() {
       collection(db, 'parkingRequests'),
       where('status', '==', 'open'),
       where('toTime', '>', Timestamp.now()),
-      orderBy('toTime', 'asc')
+      orderBy('toTime', 'asc'),
+      limit(50)
     );
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(toRequest));
@@ -62,27 +63,28 @@ export function useOpenRequests() {
 export function useMyRequests() {
   const [requests, setRequests] = useState<ParkingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
     const q = query(
       collection(db, 'parkingRequests'),
       where('requesterId', '==', uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(30)
     );
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(toRequest));
       setLoading(false);
     });
-  }, []);
+  }, [uid]);
   return { requests, loading };
 }
 
 export function useMyApprovals() {
   const [requests, setRequests] = useState<ParkingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
     const q = query(
       collection(db, 'parkingRequests'),
@@ -94,15 +96,15 @@ export function useMyApprovals() {
       setRequests(snap.docs.map(toRequest));
       setLoading(false);
     });
-  }, []);
+  }, [uid]);
   return { requests, loading };
 }
 
 export function useActiveParking() {
   const [session, setSession] = useState<ParkingRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid) { setLoading(false); return; }
 
     const isActive = (r: ParkingRequest) =>
@@ -142,7 +144,7 @@ export function useActiveParking() {
     });
 
     return () => { unsub1(); unsub2(); };
-  }, []);
+  }, [uid]);
   return { session, loading };
 }
 
@@ -275,7 +277,7 @@ export async function cancelRequest(requestId: string): Promise<void> {
 export async function completeParking(requestId: string): Promise<void> {
   await updateDoc(doc(db, 'parkingRequests', requestId), {
     status: 'completed',
-    toTime: Timestamp.fromDate(new Date()),
+    completedAt: serverTimestamp(),
   });
 }
 
@@ -287,11 +289,11 @@ function toRequest(d: any): ParkingRequest {
   const data = d.data();
   return {
     id: d.id, ...data,
-    fromTime: data.fromTime?.toDate(),
-    toTime: data.toTime?.toDate(),
-    createdAt: data.createdAt?.toDate(),
-    confirmedAt: data.confirmedAt?.toDate(),
-    approvedAt: data.approvedAt?.toDate(),
+    fromTime: data.fromTime?.toDate() ?? new Date(0),
+    toTime: data.toTime?.toDate() ?? new Date(0),
+    createdAt: data.createdAt?.toDate() ?? new Date(),
+    confirmedAt: data.confirmedAt?.toDate?.() ?? undefined,
+    approvedAt: data.approvedAt?.toDate?.() ?? undefined,
   };
 }
 

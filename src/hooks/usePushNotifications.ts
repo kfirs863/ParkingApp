@@ -68,6 +68,12 @@ function handleNotificationAction(data: Record<string, string>): void {
     case 'confirm_car':
       navigate('Home', { openConfirm: requestId });
       break;
+    case 'approve':
+      navigate('Home', { openApprove: requestId });
+      break;
+    case 'view_active':
+      navigate('Home', { openActive: true });
+      break;
     default:
       navigate('Home');
   }
