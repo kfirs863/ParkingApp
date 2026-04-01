@@ -690,7 +690,7 @@ const rc = StyleSheet.create({
 
 // ─── HomeScreen ───────────────────────────────────────────
 export default function HomeScreen({ navigation }: Props) {
-  const route = useRoute<RouteProp<{ Home: { openConfirm?: string } }, 'Home'>>();
+  const route = useRoute<RouteProp<{ Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } }, 'Home'>>();
 
   const { requests: openReqs, loading: l1 } = useOpenRequests();
   const { requests: myReqs, loading: l2 } = useMyRequests();
@@ -715,6 +715,25 @@ export default function HomeScreen({ navigation }: Props) {
     const target = myReqs.find((r) => r.id === requestId && r.status === 'approved');
     if (target) setConfirmTarget(target);
   }, [route.params?.openConfirm, myReqs]);
+
+  // Auto-open approve modal from push notification
+  useEffect(() => {
+    const requestId = route.params?.openApprove;
+    if (!requestId || openReqs.length === 0) return;
+    const target = openReqs.find((r) => r.id === requestId && r.status === 'open');
+    if (target) {
+      setTab('all');
+      setApproveTarget(target);
+    }
+  }, [route.params?.openApprove, openReqs]);
+
+  // Auto-open active session modal from push notification
+  useEffect(() => {
+    if (route.params?.openActive && activeSession) {
+      setSessionModalOpen(true);
+    }
+  }, [route.params?.openActive, activeSession]);
+
   const activeMyReqs = myReqs.filter((r) => ['open', 'approved'].includes(r.status));
 
   return (

@@ -7,7 +7,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import RequestScreen from '../screens/request/RequestScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 export type MainTabParamList = {
-  Home: { openConfirm?: string } | undefined;
+  Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } | undefined;
   Request: undefined;
   Profile: undefined;
 };

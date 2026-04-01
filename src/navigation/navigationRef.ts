@@ -1,7 +1,7 @@
 import { createNavigationContainerRef } from '@react-navigation/native';
 
 export type RootParamList = {
-  Home: { openConfirm?: string } | undefined;
+  Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } | undefined;
   Request: undefined;
   Profile: undefined;
 };
