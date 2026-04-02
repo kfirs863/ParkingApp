@@ -204,9 +204,13 @@ export const onNewParkingRequest = functions
       );
     }
 
-    // Step 2: if any targeted push was sent → skip broadcast
+    // Step 2: if any targeted push was sent → defer broadcast (don't skip forever)
     if (targetedUids.size > 0) {
-      functions.logger.info(`Targeted ${targetedUids.size} available owners — broadcast skipped`);
+      await snap.ref.update({
+        targetedAt: admin.firestore.Timestamp.now(),
+        broadcastSent: false,
+      });
+      functions.logger.info(`Targeted ${targetedUids.size} owners — broadcast deferred`);
       return;
     }
 
@@ -316,6 +320,99 @@ export const expireStaleRequests = functions
 
     await Promise.all([batch.commit(), ...pushPromises]);
     functions.logger.info(`Expired ${staleSnap.size} stale requests`);
+  });
+
+// ─────────────────────────────────────────────────────────
+// SCHEDULED: fallback broadcast for unclaimed targeted requests
+//
+// When a new request matches an availability window, only the
+// matching owner(s) get notified. If none of them approve within
+// 10 minutes, broadcast to all other owners so the requester
+// isn't stuck waiting.
+// Runs every 5 minutes.
+// ─────────────────────────────────────────────────────────
+export const broadcastUnclaimedRequests = functions
+  .region('europe-west1')
+  .pubsub.schedule('every 5 minutes')
+  .onRun(async () => {
+    const cutoff = admin.firestore.Timestamp.fromMillis(
+      Date.now() - 10 * 60 * 1000 // 10 minutes ago
+    );
+
+    const snap = await db
+      .collection('parkingRequests')
+      .where('status', '==', 'open')
+      .where('broadcastSent', '==', false)
+      .where('targetedAt', '<', cutoff)
+      .get();
+
+    if (snap.empty) return;
+
+    for (const reqDoc of snap.docs) {
+      const req = reqDoc.data() as ParkingRequest;
+
+      const ownersSnap = await db
+        .collection('users')
+        .where('ownedSpot', '!=', null)
+        .get();
+
+      const tokens: { token: string; uid: string }[] = [];
+      for (const d of ownersSnap.docs) {
+        const data = d.data() as UserDoc;
+        if (d.id === req.requesterId) continue;
+        if (!data.fcmToken || data.pushGeneral === false) continue;
+        if (await isSpotOccupied(d.id, req.fromTime, req.toTime)) continue;
+        tokens.push({ token: data.fcmToken as string, uid: d.id });
+      }
+
+      if (tokens.length > 0) {
+        const BATCH = 100;
+        for (let i = 0; i < tokens.length; i += BATCH) {
+          const slice = tokens.slice(i, i + BATCH);
+          try {
+            const messages = slice.map((t) => ({
+              to: t.token,
+              title: `${req.requesterName} עדיין מחפש/ת חניה`,
+              body: `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
+              data: { requestId: reqDoc.id, action: 'approve' },
+              sound: 'default' as const,
+              channelId: 'parking_alerts',
+              priority: 'high' as const,
+            }));
+            const res = await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(messages),
+            });
+            const results = (await res.json()) as any;
+            if (Array.isArray(results.data)) {
+              results.data.forEach((receipt: any, idx: number) => {
+                if (
+                  receipt.status === 'error' &&
+                  receipt.details?.error === 'DeviceNotRegistered'
+                ) {
+                  db.collection('users')
+                    .doc(slice[idx].uid)
+                    .update({ fcmToken: null });
+                }
+              });
+            }
+          } catch (err) {
+            functions.logger.error('Fallback broadcast failed', err);
+          }
+        }
+      }
+
+      // Mark so we don't broadcast again
+      await reqDoc.ref.update({ broadcastSent: true });
+    }
+
+    functions.logger.info(
+      `Fallback broadcast sent for ${snap.size} unclaimed requests`
+    );
   });
 
 // ─────────────────────────────────────────────────────────

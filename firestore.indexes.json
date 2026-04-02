@@ -113,6 +113,15 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "parkingRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "broadcastSent", "order": "ASCENDING" },
+        { "fieldPath": "targetedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
