@@ -32,6 +32,7 @@ module.exports = {
       ],
     },
     plugins: [
+      "@react-native-firebase/app",
       [
         "expo-notifications",
         {

@@ -7,9 +7,7 @@ import { RouteProp } from '@react-navigation/native';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
-import { sendOTP, verifyOTP, firebaseConfig } from '../../config/firebase';
-import { RecaptchaVerifier } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { sendOTP, verifyOTP } from '../../config/firebase';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'OTP'>;
@@ -24,29 +22,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
-  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
 
-  // Initialize reCAPTCHA verifier
-  useEffect(() => {
-    if (!recaptchaVerifier.current) {
-      recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container-otp', {
-        size: 'invisible',
-        callback: () => {
-          // reCAPTCHA solved
-        },
-        'expired-callback': () => {
-          // reCAPTCHA expired
-        }
-      });
-    }
-
-    return () => {
-      if (recaptchaVerifier.current) {
-        recaptchaVerifier.current.clear();
-        recaptchaVerifier.current = null;
-      }
-    };
-  }, []);
   // Countdown for resend
   useEffect(() => {
     if (countdown === 0) return;
@@ -54,8 +30,14 @@ export default function OTPScreen({ navigation, route }: Props) {
     return () => clearTimeout(t);
   }, [countdown]);
 
+  const toLatinDigit = (str: string): string =>
+    // Normalize Arabic-Indic (٠-٩) and Extended Arabic-Indic (۰-۹) to ASCII 0-9
+    str
+      .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+      .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06F0));
+
   const handleDigit = (text: string, index: number) => {
-    const digit = text.replace(/\D/g, '').slice(-1);
+    const digit = toLatinDigit(text).replace(/\D/g, '').slice(-1);
     const next = [...code];
     next[index] = digit;
     setCode(next);
@@ -69,7 +51,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   };
 
   const fullCode = code.join('');
-  const isComplete = fullCode.length === CODE_LENGTH;
+  const isComplete = code.every((d) => d.length === 1);
 
   const handleVerify = async () => {
     setLoading(true);
@@ -110,6 +92,7 @@ export default function OTPScreen({ navigation, route }: Props) {
             keyboardType="number-pad"
             maxLength={1}
             textAlign="center"
+            autoComplete={i === 0 ? 'sms-otp' : 'off'}
           />
         ))}
       </View>
@@ -119,7 +102,7 @@ export default function OTPScreen({ navigation, route }: Props) {
         disabled={countdown > 0}
         onPress={async () => {
           try {
-            await sendOTP(phone, recaptchaVerifier.current);
+            await sendOTP(phone);
             setCountdown(30);
           } catch {
             Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');
@@ -138,9 +121,6 @@ export default function OTPScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>← שנה מספר</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Invisible reCAPTCHA container - Firebase handles this automatically */}
-      <View id="recaptcha-container-otp" style={{ position: 'absolute', bottom: -1000 }} />
     </ScreenShell>
   );
 }

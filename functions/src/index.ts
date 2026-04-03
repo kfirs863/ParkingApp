@@ -489,6 +489,26 @@ export const generateRecurringAvailability = functions
   });
 
 // ─────────────────────────────────────────────────────────
+// CALLABLE: mint a custom token so the JS SDK can be synced after
+// the native SDK signs in. The client passes its native ID token;
+// we verify it with the Admin SDK and return a custom token for
+// the same UID, which the JS SDK accepts via signInWithCustomToken.
+// ─────────────────────────────────────────────────────────
+export const mintCustomToken = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const idToken: string = data?.idToken;
+    if (!idToken) throw new functions.https.HttpsError('invalid-argument', 'idToken required');
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      const customToken = await admin.auth().createCustomToken(decoded.uid);
+      return { customToken };
+    } catch (err) {
+      throw new functions.https.HttpsError('unauthenticated', 'Invalid ID token');
+    }
+  });
+
+// ─────────────────────────────────────────────────────────
 // TRIGGER: parkingPings — owner sends gentle reminder to requester
 // Rate-limited: max 1 push per 5 minutes per requestId (server-side guard)
 // ─────────────────────────────────────────────────────────

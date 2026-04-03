@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,37 +10,12 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { sendOTP, firebaseConfig } from '../../config/firebase';
-import { RecaptchaVerifier } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { sendOTP } from '../../config/firebase';
 import { colors } from '../../theme';
 
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
-
-  useEffect(() => {
-    // Initialize reCAPTCHA verifier
-    if (!recaptchaVerifier.current) {
-      recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          // reCAPTCHA solved
-        },
-        'expired-callback': () => {
-          // reCAPTCHA expired
-        }
-      });
-    }
-
-    return () => {
-      if (recaptchaVerifier.current) {
-        recaptchaVerifier.current.clear();
-        recaptchaVerifier.current = null;
-      }
-    };
-  }, []);
 
   const toInternational = (local: string): string => {
     const digits = local.replace(/\D/g, '');
@@ -59,7 +34,7 @@ export default function PhoneScreen({ navigation }: any) {
     setLoading(true);
     try {
       const fullPhone = toInternational(phoneNumber);
-      await sendOTP(fullPhone, recaptchaVerifier.current);
+      await sendOTP(fullPhone);
       navigation.navigate('OTP', { phone: fullPhone });
     } catch (error: any) {
       console.error('Send OTP error:', error);
@@ -99,9 +74,6 @@ export default function PhoneScreen({ navigation }: any) {
           }
         </TouchableOpacity>
       </View>
-
-      {/* Invisible reCAPTCHA container - Firebase handles this automatically */}
-      <View id="recaptcha-container" style={{ position: 'absolute', bottom: -1000 }} />
     </KeyboardAvoidingView>
   );
 }

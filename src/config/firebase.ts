@@ -2,8 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
-  PhoneAuthProvider,
-  signInWithCredential as _signInWithCredential,
+  signInWithCustomToken as _signInWithCustomToken,
   signOut as _signOut,
   onAuthStateChanged as _onAuthStateChanged,
   User,
@@ -19,8 +18,16 @@ import {
   getFirestore, doc, setDoc, getDoc, getDocs,
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Native Firebase SDK — handles reCAPTCHA/app verification silently on device
+import rnFirebaseAuth, {
+  getAuth as getRNAuth,
+  signInWithPhoneNumber as rnSignInWithPhoneNumber,
+  signInWithCredential as rnSignInWithCredential,
+  signOut as rnSignOut,
+} from '@react-native-firebase/auth';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -43,9 +50,11 @@ try {
 
 export { auth, app };
 export const db = getFirestore(app);
+const fns = getFunctions(app, 'europe-west1');
 
 // ─── Auth helpers ──────────────────────────────────────────
-export function signOut() {
+export async function signOut() {
+  await rnSignOut(getRNAuth());
   return _signOut(auth);
 }
 
@@ -53,24 +62,29 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
   return _onAuthStateChanged(auth, callback);
 }
 
-// ─── OTP ──────────────────────────────────────────────────
-const OTP_STORAGE_KEY = 'otp_verification_id';
+// ─── OTP (via @react-native-firebase/auth — handles reCAPTCHA natively) ───
+const OTP_STORAGE_KEY = 'otp_confirmation_id';
 
-export async function sendOTP(phoneNumber: string, verifier?: any): Promise<void> {
-  if (!verifier) {
-    throw new Error('ReCAPTCHA verifier is not ready. Please wait and try again.');
-  }
-
-  const provider = new PhoneAuthProvider(auth);
-  const id = await provider.verifyPhoneNumber(phoneNumber, verifier);
-  await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
+export async function sendOTP(phoneNumber: string): Promise<void> {
+  const confirmation = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
+  await AsyncStorage.setItem(OTP_STORAGE_KEY, confirmation.verificationId);
 }
 
 export async function verifyOTP(code: string): Promise<void> {
-  const id = await AsyncStorage.getItem(OTP_STORAGE_KEY);
-  if (!id) throw new Error('No verification ID — resend the code');
-  const credential = PhoneAuthProvider.credential(id, code);
-  await _signInWithCredential(auth, credential);
+  const verificationId = await AsyncStorage.getItem(OTP_STORAGE_KEY);
+  if (!verificationId) throw new Error('No verification ID — resend the code');
+
+  // 1. Sign in via native SDK — validates the OTP, handles reCAPTCHA natively
+  const nativeCredential = rnFirebaseAuth.PhoneAuthProvider.credential(verificationId, code);
+  const nativeResult = await rnSignInWithCredential(getRNAuth(), nativeCredential);
+
+  // 2. Get native user's ID token and exchange it for a custom token via Cloud Function.
+  //    This lets the JS SDK auth (used by Firestore) share the same session.
+  const idToken = await nativeResult.user.getIdToken();
+  const mintCustomToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
+  const { data } = await mintCustomToken({ idToken });
+  await _signInWithCustomToken(auth, data.customToken);
+
   await AsyncStorage.removeItem(OTP_STORAGE_KEY);
 }
 
