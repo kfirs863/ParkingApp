@@ -11,6 +11,7 @@ import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import MainNavigator from './src/navigation/MainNavigator';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 type AppState = 'loading' | 'onboarding' | 'main';
 
@@ -47,10 +48,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer ref={navigationRef}>
-        <StatusBar style="light" backgroundColor={colors.bg} />
-        {appState === 'onboarding' ? <OnboardingNavigator /> : <MainNavigator />}
-      </NavigationContainer>
+      <ErrorBoundary>
+        <NavigationContainer ref={navigationRef}>
+          <StatusBar style="light" backgroundColor={colors.bg} />
+          {appState === 'onboarding' ? <OnboardingNavigator /> : <MainNavigator />}
+        </NavigationContainer>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

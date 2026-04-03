@@ -11,15 +11,8 @@ import {
   Alert,
 } from 'react-native';
 import { sendOTP, firebaseConfig } from '../../config/firebase';
-import { FirebaseRecaptchaVerifierModal } from '../../components/FirebaseRecaptcha';
-
-const THEME_COLORS = {
-  background: '#0A0A0F',
-  primary: '#F5A623',
-  text: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  inputBackground: '#1C1C1E',
-};
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { colors } from '../../theme';
 
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -65,7 +58,7 @@ export default function PhoneScreen({ navigation }: any) {
         <TextInput
           style={styles.input}
           placeholder="05XXXXXXXX"
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textMuted}
           keyboardType="phone-pad"
           value={phoneNumber}
           onChangeText={setPhoneNumber}
@@ -78,7 +71,7 @@ export default function PhoneScreen({ navigation }: any) {
           disabled={loading || !isValidPhone}
         >
           {loading
-            ? <ActivityIndicator color="#000" />
+            ? <ActivityIndicator color={colors.bg} />
             : <Text style={styles.buttonText}>שלח קוד</Text>
           }
         </TouchableOpacity>
@@ -96,7 +89,7 @@ export default function PhoneScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME_COLORS.background,
+    backgroundColor: colors.bg,
   },
   content: {
     flex: 1,
@@ -107,23 +100,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: THEME_COLORS.text,
+    color: colors.textPrimary,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: THEME_COLORS.textSecondary,
+    color: colors.textSecondary,
     marginBottom: 32,
     textAlign: 'center',
   },
   input: {
     width: '100%',
     height: 56,
-    backgroundColor: THEME_COLORS.inputBackground,
+    backgroundColor: colors.bgInput,
     borderRadius: 12,
     paddingHorizontal: 16,
-    color: THEME_COLORS.text,
+    color: colors.textPrimary,
     fontSize: 18,
     marginBottom: 24,
     textAlign: 'right',
@@ -131,7 +124,7 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     height: 56,
-    backgroundColor: THEME_COLORS.primary,
+    backgroundColor: colors.accent,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -142,6 +135,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#000',
+    color: colors.bg,
   },
 });

@@ -36,9 +36,9 @@ export default function DoneScreen({ navigation }: Props) {
 
           <View style={styles.tips}>
             {[
-              { emoji: '🅿️', text: 'לחץ על "הצע חניה" כשאתה יוצא לנסיעה' },
-              { emoji: '🔔', text: 'תקבל התראה כשמישהו מציע חניה' },
-              { emoji: '💬', text: 'תאם פרטים דרך הצ\'אט הפנימי' },
+              { emoji: '🙋', text: 'לחץ על "בקש חניה" כשאתה צריך מקום' },
+              { emoji: '🔔', text: 'תקבל התראה כשמישהו מאשר את הבקשה שלך' },
+              { emoji: '🅿️', text: 'יש לך חניה? תוכל לאשר בקשות של שכנים' },
             ].map(({ emoji, text }) => (
               <View key={text} style={styles.tip}>
                 <Text style={styles.tipEmoji}>{emoji}</Text>

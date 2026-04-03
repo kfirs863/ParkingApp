@@ -7,7 +7,8 @@ import { RouteProp } from '@react-navigation/native';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
-import { sendOTP, verifyOTP } from '../../config/firebase';
+import { sendOTP, verifyOTP, firebaseConfig } from '../../config/firebase';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'OTP'>;
@@ -22,6 +23,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
   // Countdown for resend
   useEffect(() => {
     if (countdown === 0) return;
@@ -94,7 +96,7 @@ export default function OTPScreen({ navigation, route }: Props) {
         disabled={countdown > 0}
         onPress={async () => {
           try {
-            await sendOTP(phone);
+            await sendOTP(phone, recaptchaVerifier.current);
             setCountdown(30);
           } catch {
             Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');
@@ -113,6 +115,12 @@ export default function OTPScreen({ navigation, route }: Props) {
           <Text style={styles.backText}>← שנה מספר</Text>
         </TouchableOpacity>
       </View>
+
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={false}
+      />
     </ScreenShell>
   );
 }
