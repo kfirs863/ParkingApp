@@ -8,45 +8,36 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert
+  Alert,
 } from 'react-native';
 import { sendOTP } from '../../config/firebase';
 
-// הגדרת צבעים מקומית למניעת שגיאות undefined
 const THEME_COLORS = {
   background: '#0A0A0F',
   primary: '#F5A623',
   text: '#FFFFFF',
   textSecondary: '#8E8E93',
-  inputBackground: '#1C1C1E'
+  inputBackground: '#1C1C1E',
 };
 
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Convert local Israeli number (05XXXXXXXX) to international format (+9725XXXXXXXX)
   const toInternational = (local: string): string => {
     const digits = local.replace(/\D/g, '');
-    if (digits.startsWith('0')) {
-      return `+972${digits.slice(1)}`;
-    }
-    if (digits.startsWith('972')) {
-      return `+${digits}`;
-    }
+    if (digits.startsWith('0')) return `+972${digits.slice(1)}`;
+    if (digits.startsWith('972')) return `+${digits}`;
     return `+972${digits}`;
   };
 
   const isValidPhone = /^05\d{8}$/.test(phoneNumber.replace(/\D/g, ''));
 
   const handleSendCode = async () => {
-    if (!phoneNumber) return;
-
     if (!isValidPhone) {
       Alert.alert('שגיאה', 'הכנס מספר טלפון ישראלי תקין (05XXXXXXXX)');
       return;
     }
-
     setLoading(true);
     try {
       const fullPhone = toInternational(phoneNumber);
@@ -84,11 +75,10 @@ export default function PhoneScreen({ navigation }: any) {
           onPress={handleSendCode}
           disabled={loading || !isValidPhone}
         >
-          {loading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.buttonText}>שלח קוד</Text>
-          )}
+          {loading
+            ? <ActivityIndicator color="#000" />
+            : <Text style={styles.buttonText}>שלח קוד</Text>
+          }
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

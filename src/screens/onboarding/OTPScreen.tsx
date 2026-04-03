@@ -22,7 +22,6 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
-
   // Countdown for resend
   useEffect(() => {
     if (countdown === 0) return;
