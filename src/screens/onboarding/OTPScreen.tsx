@@ -8,7 +8,8 @@ import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { sendOTP, verifyOTP, firebaseConfig } from '../../config/firebase';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { RecaptchaVerifier } from 'firebase/auth';
+import { auth } from '../../config/firebase';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'OTP'>;
@@ -23,7 +24,29 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
+
+  // Initialize reCAPTCHA verifier
+  useEffect(() => {
+    if (!recaptchaVerifier.current) {
+      recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container-otp', {
+        size: 'invisible',
+        callback: () => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          // reCAPTCHA expired
+        }
+      });
+    }
+
+    return () => {
+      if (recaptchaVerifier.current) {
+        recaptchaVerifier.current.clear();
+        recaptchaVerifier.current = null;
+      }
+    };
+  }, []);
   // Countdown for resend
   useEffect(() => {
     if (countdown === 0) return;
@@ -116,11 +139,8 @@ export default function OTPScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={false}
-      />
+      {/* Invisible reCAPTCHA container - Firebase handles this automatically */}
+      <View id="recaptcha-container-otp" style={{ position: 'absolute', bottom: -1000 }} />
     </ScreenShell>
   );
 }

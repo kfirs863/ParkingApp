@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,13 +11,36 @@ import {
   Alert,
 } from 'react-native';
 import { sendOTP, firebaseConfig } from '../../config/firebase';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { RecaptchaVerifier } from 'firebase/auth';
+import { auth } from '../../config/firebase';
 import { colors } from '../../theme';
 
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+  const recaptchaVerifier = useRef<RecaptchaVerifier | null>(null);
+
+  useEffect(() => {
+    // Initialize reCAPTCHA verifier
+    if (!recaptchaVerifier.current) {
+      recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          // reCAPTCHA expired
+        }
+      });
+    }
+
+    return () => {
+      if (recaptchaVerifier.current) {
+        recaptchaVerifier.current.clear();
+        recaptchaVerifier.current = null;
+      }
+    };
+  }, []);
 
   const toInternational = (local: string): string => {
     const digits = local.replace(/\D/g, '');
@@ -77,11 +100,8 @@ export default function PhoneScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={firebaseConfig}
-        attemptInvisibleVerification={false}
-      />
+      {/* Invisible reCAPTCHA container - Firebase handles this automatically */}
+      <View id="recaptcha-container" style={{ position: 'absolute', bottom: -1000 }} />
     </KeyboardAvoidingView>
   );
 }
