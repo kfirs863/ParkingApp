@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { sendOTP } from '../../config/firebase';
+import { sendOTP, firebaseConfig } from '../../config/firebase';
+import { FirebaseRecaptchaVerifierModal } from '../../components/FirebaseRecaptcha';
 
 const THEME_COLORS = {
   background: '#0A0A0F',
@@ -23,6 +24,7 @@ const THEME_COLORS = {
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   const toInternational = (local: string): string => {
     const digits = local.replace(/\D/g, '');
@@ -41,7 +43,7 @@ export default function PhoneScreen({ navigation }: any) {
     setLoading(true);
     try {
       const fullPhone = toInternational(phoneNumber);
-      await sendOTP(fullPhone);
+      await sendOTP(fullPhone, recaptchaVerifier.current);
       navigation.navigate('OTP', { phone: fullPhone });
     } catch (error: any) {
       console.error('Send OTP error:', error);
@@ -81,6 +83,12 @@ export default function PhoneScreen({ navigation }: any) {
           }
         </TouchableOpacity>
       </View>
+
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={firebaseConfig}
+        attemptInvisibleVerification={false}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -22,7 +22,7 @@ import {
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
   authDomain: "parkingapp-1fb82.firebaseapp.com",
   projectId: "parkingapp-1fb82",
@@ -56,10 +56,13 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
 // ─── OTP ──────────────────────────────────────────────────
 const OTP_STORAGE_KEY = 'otp_verification_id';
 
-export async function sendOTP(phoneNumber: string): Promise<void> {
+export async function sendOTP(phoneNumber: string, verifier?: any): Promise<void> {
+  if (!verifier) {
+    throw new Error('ReCAPTCHA verifier is not ready. Please wait and try again.');
+  }
+
   const provider = new PhoneAuthProvider(auth);
-  const fakeVerifier = { type: 'recaptcha', verify: async () => '', _reset: () => {} } as any;
-  const id = await provider.verifyPhoneNumber(phoneNumber, fakeVerifier);
+  const id = await provider.verifyPhoneNumber(phoneNumber, verifier);
   await AsyncStorage.setItem(OTP_STORAGE_KEY, id);
 }
 
