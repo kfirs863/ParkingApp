@@ -75,12 +75,15 @@ export async function verifyOTP(code: string): Promise<void> {
   if (!_confirmationResult) throw new Error('No verification in progress — resend the code');
 
   // 1. Confirm OTP via native SDK — uses the native session held in _confirmationResult
-  const nativeResult = await _confirmationResult.confirm(code);
+  await _confirmationResult.confirm(code);
   _confirmationResult = null;
 
   // 2. Exchange the native user's ID token for a custom token so the JS SDK
   //    auth (used by Firestore security rules) shares the same session.
-  const idToken = await rnGetIdToken(nativeResult.user);
+  //    Read currentUser directly from auth — avoids proxy issues on the result object.
+  const currentUser = getRNAuth().currentUser;
+  if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
+  const idToken = await rnGetIdToken(currentUser);
   const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
   const { data } = await mintToken({ idToken });
   await _signInWithCustomToken(auth, data.customToken);

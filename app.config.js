@@ -19,7 +19,7 @@ module.exports = {
     },
     android: {
       package: "kfirs863.ParkingApp",
-      versionCode: 1,
+      versionCode: 2,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F5A623",
