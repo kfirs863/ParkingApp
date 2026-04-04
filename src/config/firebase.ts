@@ -22,12 +22,14 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Native Firebase SDK — handles reCAPTCHA/app verification silently on device
-import rnFirebaseAuth, {
+import {
   getAuth as getRNAuth,
   signInWithPhoneNumber as rnSignInWithPhoneNumber,
   signInWithCredential as rnSignInWithCredential,
   signOut as rnSignOut,
+  getIdToken as rnGetIdToken,
 } from '@react-native-firebase/auth';
+import RNPhoneAuthProvider from '@react-native-firebase/auth/lib/providers/PhoneAuthProvider';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -67,6 +69,7 @@ const OTP_STORAGE_KEY = 'otp_confirmation_id';
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
   const confirmation = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
+  if (!confirmation.verificationId) throw new Error('Failed to get verification ID');
   await AsyncStorage.setItem(OTP_STORAGE_KEY, confirmation.verificationId);
 }
 
@@ -75,12 +78,12 @@ export async function verifyOTP(code: string): Promise<void> {
   if (!verificationId) throw new Error('No verification ID — resend the code');
 
   // 1. Sign in via native SDK — validates the OTP, handles reCAPTCHA natively
-  const nativeCredential = rnFirebaseAuth.PhoneAuthProvider.credential(verificationId, code);
+  const nativeCredential = RNPhoneAuthProvider.credential(verificationId, code);
   const nativeResult = await rnSignInWithCredential(getRNAuth(), nativeCredential);
 
   // 2. Get native user's ID token and exchange it for a custom token via Cloud Function.
   //    This lets the JS SDK auth (used by Firestore) share the same session.
-  const idToken = await nativeResult.user.getIdToken();
+  const idToken = await rnGetIdToken(nativeResult.user);
   const mintCustomToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
   const { data } = await mintCustomToken({ idToken });
   await _signInWithCustomToken(auth, data.customToken);
