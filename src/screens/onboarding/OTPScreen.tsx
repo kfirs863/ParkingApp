@@ -37,7 +37,16 @@ export default function OTPScreen({ navigation, route }: Props) {
       .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06F0));
 
   const handleDigit = (text: string, index: number) => {
-    const digit = toLatinDigit(text).replace(/\D/g, '').slice(-1);
+    const digits = toLatinDigit(text).replace(/\D/g, '');
+    if (digits.length > 1) {
+      // Autofill paste — distribute digits across all boxes
+      const next = Array(CODE_LENGTH).fill('');
+      digits.slice(0, CODE_LENGTH).split('').forEach((d, i) => { next[i] = d; });
+      setCode(next);
+      inputRefs.current[Math.min(digits.length, CODE_LENGTH) - 1]?.focus();
+      return;
+    }
+    const digit = digits;
     const next = [...code];
     next[index] = digit;
     setCode(next);
@@ -58,8 +67,9 @@ export default function OTPScreen({ navigation, route }: Props) {
     try {
       await verifyOTP(fullCode);
       navigation.navigate('Profile');
-    } catch {
-      Alert.alert('קוד שגוי', 'הקוד שהזנת אינו תקין, נסה שוב');
+    } catch (e: any) {
+      console.error('verifyOTP error:', e?.code, e?.message, e);
+      Alert.alert('שגיאה', e?.message || 'הקוד שהזנת אינו תקין, נסה שוב');
       setCode(Array(CODE_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } finally {

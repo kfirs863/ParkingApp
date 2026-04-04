@@ -25,11 +25,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAuth as getRNAuth,
   signInWithPhoneNumber as rnSignInWithPhoneNumber,
-  signInWithCredential as rnSignInWithCredential,
   signOut as rnSignOut,
   getIdToken as rnGetIdToken,
 } from '@react-native-firebase/auth';
-import RNPhoneAuthProvider from '@react-native-firebase/auth/lib/providers/PhoneAuthProvider';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -65,30 +63,27 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
 }
 
 // ─── OTP (via @react-native-firebase/auth — handles reCAPTCHA natively) ───
-const OTP_STORAGE_KEY = 'otp_confirmation_id';
+// ConfirmationResult is held in memory — it wraps a native session that
+// cannot be serialised to AsyncStorage.
+let _confirmationResult: Awaited<ReturnType<typeof rnSignInWithPhoneNumber>> | null = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
-  const confirmation = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
-  if (!confirmation.verificationId) throw new Error('Failed to get verification ID');
-  await AsyncStorage.setItem(OTP_STORAGE_KEY, confirmation.verificationId);
+  _confirmationResult = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
 }
 
 export async function verifyOTP(code: string): Promise<void> {
-  const verificationId = await AsyncStorage.getItem(OTP_STORAGE_KEY);
-  if (!verificationId) throw new Error('No verification ID — resend the code');
+  if (!_confirmationResult) throw new Error('No verification in progress — resend the code');
 
-  // 1. Sign in via native SDK — validates the OTP, handles reCAPTCHA natively
-  const nativeCredential = RNPhoneAuthProvider.credential(verificationId, code);
-  const nativeResult = await rnSignInWithCredential(getRNAuth(), nativeCredential);
+  // 1. Confirm OTP via native SDK — uses the native session held in _confirmationResult
+  const nativeResult = await _confirmationResult.confirm(code);
+  _confirmationResult = null;
 
-  // 2. Get native user's ID token and exchange it for a custom token via Cloud Function.
-  //    This lets the JS SDK auth (used by Firestore) share the same session.
+  // 2. Exchange the native user's ID token for a custom token so the JS SDK
+  //    auth (used by Firestore security rules) shares the same session.
   const idToken = await rnGetIdToken(nativeResult.user);
-  const mintCustomToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data } = await mintCustomToken({ idToken });
+  const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
+  const { data } = await mintToken({ idToken });
   await _signInWithCustomToken(auth, data.customToken);
-
-  await AsyncStorage.removeItem(OTP_STORAGE_KEY);
 }
 
 // ─── User Profile ─────────────────────────────────────────
