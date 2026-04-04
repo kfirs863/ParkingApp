@@ -26,7 +26,6 @@ import {
   getAuth as getRNAuth,
   signInWithPhoneNumber as rnSignInWithPhoneNumber,
   signOut as rnSignOut,
-  getIdToken as rnGetIdToken,
 } from '@react-native-firebase/auth';
 
 export const firebaseConfig = {
@@ -83,7 +82,8 @@ export async function verifyOTP(code: string): Promise<void> {
   //    Read currentUser directly from auth — avoids proxy issues on the result object.
   const currentUser = getRNAuth().currentUser;
   if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
-  const idToken = await rnGetIdToken(currentUser);
+  // Call getIdToken directly on the user object — avoids modular wrapper proxy issues
+  const idToken = await (currentUser as any).getIdToken(true);
   const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
   const { data } = await mintToken({ idToken });
   await _signInWithCustomToken(auth, data.customToken);

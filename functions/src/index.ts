@@ -503,8 +503,9 @@ export const mintCustomToken = functions
       const decoded = await admin.auth().verifyIdToken(idToken);
       const customToken = await admin.auth().createCustomToken(decoded.uid);
       return { customToken };
-    } catch (err) {
-      throw new functions.https.HttpsError('unauthenticated', 'Invalid ID token');
+    } catch (err: any) {
+      functions.logger.error('mintCustomToken failed:', err?.message, 'token prefix:', idToken?.slice(0, 20));
+      throw new functions.https.HttpsError('unauthenticated', err?.message ?? 'Invalid ID token');
     }
   });
 
