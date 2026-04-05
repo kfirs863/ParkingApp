@@ -17,7 +17,7 @@ type Props = {
 const CODE_LENGTH = 6;
 
 export default function OTPScreen({ navigation, route }: Props) {
-  const { phone } = route.params;
+  const { phone, afterGoogle } = route.params;
   const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
@@ -65,7 +65,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const handleVerify = async () => {
     setLoading(true);
     try {
-      await verifyOTP(fullCode);
+      await verifyOTP(fullCode, afterGoogle);
       navigation.navigate('Profile');
     } catch (e: any) {
       console.error('verifyOTP error:', e?.code, e?.message, e);

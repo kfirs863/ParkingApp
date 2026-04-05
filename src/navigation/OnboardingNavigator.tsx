@@ -10,8 +10,8 @@ import DoneScreen from '../screens/onboarding/DoneScreen';
 
 export type OnboardingStackParamList = {
   Welcome: undefined;
-  Phone: undefined;
-  OTP: { phone: string };
+  Phone: { afterGoogle?: boolean } | undefined;
+  OTP: { phone: string; afterGoogle?: boolean };
   Profile: undefined;
   CarNumber: { name: string; tower: string; apartment: string };
   Done: undefined;

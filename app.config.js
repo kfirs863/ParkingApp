@@ -33,6 +33,7 @@ module.exports = {
     },
     plugins: [
       "@react-native-firebase/app",
+      "@react-native-google-signin/google-signin",
       [
         "expo-notifications",
         {

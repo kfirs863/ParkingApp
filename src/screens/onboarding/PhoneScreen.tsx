@@ -13,7 +13,8 @@ import {
 import { sendOTP } from '../../config/firebase';
 import { colors } from '../../theme';
 
-export default function PhoneScreen({ navigation }: any) {
+export default function PhoneScreen({ navigation, route }: any) {
+  const afterGoogle = route?.params?.afterGoogle ?? false;
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +36,7 @@ export default function PhoneScreen({ navigation }: any) {
     try {
       const fullPhone = toInternational(phoneNumber);
       await sendOTP(fullPhone);
-      navigation.navigate('OTP', { phone: fullPhone });
+      navigation.navigate('OTP', { phone: fullPhone, afterGoogle });
     } catch (error: any) {
       console.error('Send OTP error:', error);
       Alert.alert('שגיאה', error?.message || 'לא ניתן לשלוח קוד, נסה שוב');
@@ -51,7 +52,11 @@ export default function PhoneScreen({ navigation }: any) {
     >
       <View style={styles.content}>
         <Text style={styles.title}>מה המספר שלך?</Text>
-        <Text style={styles.subtitle}>נשלח לך קוד אימות ב-SMS</Text>
+        <Text style={styles.subtitle}>
+          {afterGoogle
+            ? 'כדי להשלים את ההרשמה, נדרש אימות מספר טלפון'
+            : 'נשלח לך קוד אימות ב-SMS'}
+        </Text>
 
         <TextInput
           style={styles.input}
