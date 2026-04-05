@@ -25,17 +25,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAuth as getRNAuth,
   signInWithPhoneNumber as rnSignInWithPhoneNumber,
-  signInWithCredential as rnSignInWithCredential,
-  GoogleAuthProvider as RNGoogleAuthProvider,
   signOut as rnSignOut,
 } from '@react-native-firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-
-// Web Client ID from Firebase Console → Authentication → Google → Web SDK configuration
-// Replace this with your actual Web Client ID
-const WEB_CLIENT_ID = 'REPLACE_WITH_YOUR_WEB_CLIENT_ID';
-
-GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -70,25 +61,6 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
   return _onAuthStateChanged(auth, callback);
 }
 
-// ─── Google Sign-In ────────────────────────────────────────
-export async function signInWithGoogle(): Promise<void> {
-  await GoogleSignin.hasPlayServices();
-  const { data } = await GoogleSignin.signIn();
-  if (!data?.idToken) throw new Error('Google sign-in failed — no ID token returned');
-
-  // Sign into native Firebase auth with Google credential
-  const credential = RNGoogleAuthProvider.credential(data.idToken);
-  await rnSignInWithCredential(getRNAuth(), credential);
-
-  // Sync JS SDK auth so Firestore security rules have a valid token
-  const currentUser = getRNAuth().currentUser;
-  if (!currentUser) throw new Error('Google sign-in succeeded but no current user found');
-  const idToken = await (currentUser as any).getIdToken(true);
-  const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data: tokenData } = await mintToken({ idToken });
-  await _signInWithCustomToken(auth, tokenData.customToken);
-}
-
 // ─── OTP (via @react-native-firebase/auth — handles reCAPTCHA natively) ───
 // ConfirmationResult is held in memory — it wraps a native session that
 // cannot be serialised to AsyncStorage.
@@ -98,14 +70,12 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
   _confirmationResult = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
 }
 
-export async function verifyOTP(code: string, skipAuthSync = false): Promise<void> {
+export async function verifyOTP(code: string): Promise<void> {
   if (!_confirmationResult) throw new Error('No verification in progress — resend the code');
 
   // 1. Confirm OTP via native SDK — uses the native session held in _confirmationResult
   await _confirmationResult.confirm(code);
   _confirmationResult = null;
-
-  if (skipAuthSync) return; // Already signed in (e.g. Google), just needed phone verification
 
   // 2. Exchange the native user's ID token for a custom token so the JS SDK
   //    auth (used by Firestore security rules) shares the same session.
