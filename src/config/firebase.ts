@@ -113,11 +113,13 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   if (!user) throw new Error('Not authenticated');
   const ref = doc(db, 'users', user.uid);
   const existing = await getDoc(ref);
+  const existingData = existing.exists() ? existing.data() : null;
   await setDoc(ref, {
     ...profile,
     phone: user.phoneNumber,
     updatedAt: serverTimestamp(),
-    ...(!existing.exists() ? { createdAt: serverTimestamp(), pushGeneral: true } : {}),
+    ...(!existingData?.createdAt ? { createdAt: serverTimestamp() } : {}),
+    ...(existingData?.pushGeneral === undefined ? { pushGeneral: true } : {}),
   }, { merge: true });
 }
 
