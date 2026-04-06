@@ -117,7 +117,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
     ...profile,
     phone: user.phoneNumber,
     updatedAt: serverTimestamp(),
-    ...(!existing.exists() ? { createdAt: serverTimestamp() } : {}),
+    ...(!existing.exists() ? { createdAt: serverTimestamp(), pushGeneral: true } : {}),
   }, { merge: true });
 }
 

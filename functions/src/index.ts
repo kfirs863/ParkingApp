@@ -229,7 +229,7 @@ export const onNewParkingRequest = functions
 
     if (tokens.length === 0) return;
 
-    const BATCH = 100; // Expo recommends max 100 per request
+    const BATCH = 100;
     for (let i = 0; i < tokens.length; i += BATCH) {
       const slice = tokens.slice(i, i + BATCH);
       try {
