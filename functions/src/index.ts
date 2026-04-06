@@ -177,67 +177,26 @@ export const onNewParkingRequest = functions
     const req = snap.data() as ParkingRequest;
     if (req.status !== 'open') return;
 
-    // Step 1: targeted push to availability-window owners
-    // Firestore can't range-filter on two different fields,
-    // so we filter fromTime <= req.toTime and check toTime client-side
-    const availSnap = await db
-      .collection('spotAvailability')
-      .where('status',   '==', 'active')
-      .where('fromTime', '<=', req.toTime)
-      .get();
-
-    const targetedUids = new Set<string>();
-
-    for (const d of availSnap.docs) {
-      const avail = d.data();
-      // Client-side check for the other range bound
-      if (avail.toTime.toMillis() < req.fromTime.toMillis()) continue;
-      if (avail.ownerId === req.requesterId) continue;
-      if (await isSpotOccupied(avail.ownerId, req.fromTime, req.toTime)) continue;
-      targetedUids.add(avail.ownerId);
-      const token = await getToken(avail.ownerId);
-      if (!token) continue;
-      await sendPush(token, avail.ownerId,
-        'בקשה תואמת לחלון הזמינות שלך!',
-        `${req.requesterName} צריך/ה חניה מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}.`,
-        { requestId: snap.id, action: 'approve' }
-      );
-    }
-
-    // Step 2: if any targeted push was sent → defer broadcast (don't skip forever)
-    if (targetedUids.size > 0) {
-      await snap.ref.update({
-        targetedAt: admin.firestore.Timestamp.now(),
-        broadcastSent: false,
-      });
-      functions.logger.info(`Targeted ${targetedUids.size} owners — broadcast deferred`);
-      return;
-    }
-
-    // Step 3: broadcast to remaining opt-in owners
+    // Notify all owners with ownedSpot set, pushGeneral not opted-out,
+    // who are not the requester and whose spot isn't already occupied.
     const ownersSnap = await db.collection('users').where('ownedSpot', '!=', null).get();
 
-    const tokens: { token: string; uid: string }[] = [];
+    const pushes: Promise<void>[] = [];
     for (const d of ownersSnap.docs) {
       const data = d.data() as UserDoc;
       if (d.id === req.requesterId) continue;
-      if (targetedUids.has(d.id)) continue;
       if (!data.fcmToken || data.pushGeneral === false) continue;
       if (await isSpotOccupied(d.id, req.fromTime, req.toTime)) continue;
-      tokens.push({ token: data.fcmToken as string, uid: d.id });
+      pushes.push(sendPush(data.fcmToken as string, d.id,
+        `${req.requesterName} מחפש/ת חניה`,
+        `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
+        { requestId: snap.id, action: 'approve' }
+      ));
     }
 
-    if (tokens.length === 0) return;
-
-    await Promise.all(
-      tokens.map(({ token, uid }) =>
-        sendPush(token, uid,
-          `${req.requesterName} מחפש/ת חניה`,
-          `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
-          { requestId: snap.id, action: 'approve' }
-        )
-      )
-    );
+    if (pushes.length === 0) return;
+    await Promise.all(pushes);
+    functions.logger.info(`New request push sent to ${pushes.length} owners`);
   });
 
 // ─────────────────────────────────────────────────────────
@@ -296,69 +255,6 @@ export const expireStaleRequests = functions
     functions.logger.info(`Expired ${staleSnap.size} stale requests`);
   });
 
-// ─────────────────────────────────────────────────────────
-// SCHEDULED: fallback broadcast for unclaimed targeted requests
-//
-// When a new request matches an availability window, only the
-// matching owner(s) get notified. If none of them approve within
-// 10 minutes, broadcast to all other owners so the requester
-// isn't stuck waiting.
-// Runs every 5 minutes.
-// ─────────────────────────────────────────────────────────
-export const broadcastUnclaimedRequests = functions
-  .region('europe-west1')
-  .pubsub.schedule('every 5 minutes')
-  .onRun(async () => {
-    const cutoff = admin.firestore.Timestamp.fromMillis(
-      Date.now() - 10 * 60 * 1000 // 10 minutes ago
-    );
-
-    const snap = await db
-      .collection('parkingRequests')
-      .where('status', '==', 'open')
-      .where('broadcastSent', '==', false)
-      .where('targetedAt', '<', cutoff)
-      .get();
-
-    if (snap.empty) return;
-
-    for (const reqDoc of snap.docs) {
-      const req = reqDoc.data() as ParkingRequest;
-
-      const ownersSnap = await db
-        .collection('users')
-        .where('ownedSpot', '!=', null)
-        .get();
-
-      const tokens: { token: string; uid: string }[] = [];
-      for (const d of ownersSnap.docs) {
-        const data = d.data() as UserDoc;
-        if (d.id === req.requesterId) continue;
-        if (!data.fcmToken || data.pushGeneral === false) continue;
-        if (await isSpotOccupied(d.id, req.fromTime, req.toTime)) continue;
-        tokens.push({ token: data.fcmToken as string, uid: d.id });
-      }
-
-      if (tokens.length > 0) {
-        await Promise.all(
-          tokens.map(({ token, uid }) =>
-            sendPush(token, uid,
-              `${req.requesterName} עדיין מחפש/ת חניה`,
-              `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
-              { requestId: reqDoc.id, action: 'approve' }
-            )
-          )
-        );
-      }
-
-      // Mark so we don't broadcast again
-      await reqDoc.ref.update({ broadcastSent: true });
-    }
-
-    functions.logger.info(
-      `Fallback broadcast sent for ${snap.size} unclaimed requests`
-    );
-  });
 
 // ─────────────────────────────────────────────────────────
 // SCHEDULED: generate today's windows from recurring rules (00:05 daily)
