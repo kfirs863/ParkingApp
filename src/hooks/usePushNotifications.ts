@@ -51,9 +51,7 @@ async function registerForPushNotifications(uid: string): Promise<void> {
 
   if (finalStatus !== 'granted') return;
 
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: '3aea0a64-fdc2-4772-bd79-385a6052debf',
-  });
+  const tokenData = await Notifications.getDevicePushTokenAsync();
 
   await setDoc(doc(db, 'users', uid), {
     fcmToken: tokenData.data,
