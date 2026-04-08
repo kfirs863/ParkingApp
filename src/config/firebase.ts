@@ -27,6 +27,7 @@ import {
   getAuth as getRNAuth,
   signInWithPhoneNumber as rnSignInWithPhoneNumber,
   signOut as rnSignOut,
+  getIdToken as rnGetIdToken,
 } from '@react-native-firebase/auth';
 
 export const firebaseConfig = {
@@ -89,7 +90,7 @@ export async function verifyOTP(code: string): Promise<void> {
   //    auth (used by Firestore security rules) shares the same session.
   const currentUser = getRNAuth().currentUser;
   if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
-  const idToken = await currentUser.getIdToken(true);
+  const idToken = await rnGetIdToken(currentUser, true);
   const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
   const { data } = await withTimeout(mintToken({ idToken }), 20000);
   await _signInWithCustomToken(auth, data.customToken);
