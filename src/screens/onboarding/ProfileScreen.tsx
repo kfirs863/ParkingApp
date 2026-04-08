@@ -4,6 +4,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, Input, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
+import { towerLabel } from '../../utils/towerLabel';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Profile'>;
@@ -51,7 +52,7 @@ export default function ProfileScreen({ navigation }: Props) {
               activeOpacity={0.8}
             >
               <Text style={[styles.toggleText, tower === t && styles.toggleTextActive]}>
-                מגדל {t}
+                {towerLabel(t)}
               </Text>
             </TouchableOpacity>
           ))}

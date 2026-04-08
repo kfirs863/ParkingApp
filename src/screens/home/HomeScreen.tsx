@@ -17,6 +17,7 @@ import { auth, useUserProfile } from '../../config/firebase';
 import { Input } from '../../components';
 import { ActiveParkingCard } from '../../components/ActiveParkingCard';
 import { useActiveParking } from '../../hooks/useParking';
+import { towerLabel } from '../../utils/towerLabel';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
 
@@ -83,7 +84,7 @@ function ApproveModal({
         <Text style={m.sub}>
           {'לבקשה של '}
           <Text style={{ color: colors.accent }}>{request.requesterName}</Text>
-          {'\n'}{'דירה ' + request.requesterApartment + ' \u00b7 מגדל ' + request.requesterTower}
+          {'\n'}{'דירה ' + request.requesterApartment + ' \u00b7 ' + towerLabel(request.requesterTower)}
           {'\n'}{formatTimeRange(request.fromTime, request.toTime)}
         </Text>
         {request.requesterPhone ? (
@@ -104,7 +105,7 @@ function ApproveModal({
           </View>
           <View style={m.spotInfo}>
             <Text style={m.spotInfoTitle}>החניה שלך</Text>
-            <Text style={m.spotInfoSub}>{'מגדל ' + ownerProfile.tower + ' \u00b7 דירה ' + ownerProfile.apartment}</Text>
+            <Text style={m.spotInfoSub}>{towerLabel(ownerProfile.tower) + ' \u00b7 דירה ' + ownerProfile.apartment}</Text>
           </View>
           <View style={m.lockedBadge}>
             <Text style={m.lockedText}>מהפרופיל</Text>
@@ -227,7 +228,7 @@ function ConfirmCarModal({
           <Text style={cc.bannerSub}>
             {'חניה '}
             <Text style={{ color: colors.accent, fontWeight: '700' }}>{request.spotNumber}</Text>
-            {'\n'}{'של ' + request.ownerName + ' (דירה ' + request.ownerApartment + ', מגדל ' + request.ownerTower + ')'}
+            {'\n'}{'של ' + request.ownerName + ' (דירה ' + request.ownerApartment + ', ' + towerLabel(request.ownerTower) + ')'}
           </Text>
           {request.ownerPhone ? <ContactButtons phone={request.ownerPhone} style={{ width: '100%' }} /> : null}
         </View>
@@ -372,7 +373,7 @@ function ActiveSessionModal({
         <View style={as.section}>
           <Text style={as.sectionLabel}>{isOwner ? 'החונה' : 'בעל החניה'}</Text>
           <Text style={as.name}>{otherName}</Text>
-          <Text style={as.meta}>{'דירה ' + otherApt + ' · מגדל ' + otherTower}</Text>
+          <Text style={as.meta}>{'דירה ' + otherApt + ' · ' + towerLabel(otherTower)}</Text>
           {otherPhone ? (
             <>
               <Text style={as.phone}>{otherPhone}</Text>
@@ -485,7 +486,7 @@ function GaveModal({ request, visible, onClose }: {
         <View style={as.section}>
           <Text style={as.sectionLabel}>שם</Text>
           <Text style={as.name}>{request.requesterName}</Text>
-          <Text style={as.meta}>{'דירה ' + request.requesterApartment + ' · מגדל ' + request.requesterTower}</Text>
+          <Text style={as.meta}>{'דירה ' + request.requesterApartment + ' · ' + towerLabel(request.requesterTower)}</Text>
         </View>
 
         <View style={as.section}>
@@ -559,7 +560,7 @@ function RequestCard({
         </View>
         <View style={rc.info}>
           <Text style={rc.name}>{isOwn ? 'הבקשה שלי' : req.requesterName}</Text>
-          <Text style={rc.meta}>{'דירה ' + req.requesterApartment + ' \u00b7 מגדל ' + req.requesterTower}</Text>
+          <Text style={rc.meta}>{'דירה ' + req.requesterApartment + ' \u00b7 ' + towerLabel(req.requesterTower)}</Text>
         </View>
         <View style={rc.durationBadge}>
           <Text style={rc.durationText}>{durationLabel(req.fromTime, req.toTime)}</Text>

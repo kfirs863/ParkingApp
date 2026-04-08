@@ -9,6 +9,21 @@ import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, Input, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { saveUserProfile, checkSpotTaken } from '../../config/firebase';
+import { towerLabel } from '../../utils/towerLabel';
+
+const FLOORS = ['P1', 'P2', 'P3', 'P4'] as const;
+type ParkingFloor = typeof FLOORS[number];
+
+function buildSpotId(floor: ParkingFloor, number: string): string {
+  return `${floor}-${number.trim()}`;
+}
+
+function parseSpotId(spotId: string): { floor: ParkingFloor | null; number: string } {
+  const match = spotId.match(/^(P[1-4])-(.+)$/);
+  if (match) return { floor: match[1] as ParkingFloor, number: match[2] };
+  // Legacy: plain number without floor
+  return { floor: null, number: spotId };
+}
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'CarNumber'>;
@@ -29,6 +44,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
   const [carError, setCarError] = useState('');
 
   const [hasSpot, setHasSpot] = useState<boolean | null>(null);
+  const [spotFloor, setSpotFloor] = useState<ParkingFloor | null>(null);
   const [spotNumber, setSpotNumber] = useState('');
   const [spotCheck, setSpotCheck] = useState<SpotCheckState>({ status: 'idle' });
 
@@ -36,17 +52,16 @@ export default function CarNumberScreen({ navigation, route }: Props) {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Spot uniqueness check (debounced) ───────────────────
-  const handleSpotChange = (text: string) => {
-    setSpotNumber(text);
+  const triggerSpotCheck = (floor: ParkingFloor | null, number: string) => {
     setSpotCheck({ status: 'idle' });
-
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    if (!text.trim()) return;
+    if (!floor || !number.trim()) return;
 
+    const spotId = buildSpotId(floor, number);
     setSpotCheck({ status: 'checking' });
     debounceTimer.current = setTimeout(async () => {
       try {
-        const taken = await checkSpotTaken(text.trim());
+        const taken = await checkSpotTaken(spotId);
         if (taken) {
           setSpotCheck({ status: 'taken', apartment: taken.apartment, tower: taken.tower });
         } else {
@@ -55,7 +70,17 @@ export default function CarNumberScreen({ navigation, route }: Props) {
       } catch {
         setSpotCheck({ status: 'error' });
       }
-    }, 600); // wait 600ms after last keystroke
+    }, 600);
+  };
+
+  const handleFloorSelect = (floor: ParkingFloor) => {
+    setSpotFloor(floor);
+    triggerSpotCheck(floor, spotNumber);
+  };
+
+  const handleSpotChange = (text: string) => {
+    setSpotNumber(text);
+    triggerSpotCheck(spotFloor, text);
   };
 
   // ─── Validation ───────────────────────────────────────────
@@ -73,6 +98,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
   const spotIsValid =
     hasSpot === false ||
     (hasSpot === true &&
+      spotFloor !== null &&
       spotNumber.trim().length > 0 &&
       spotCheck.status === 'available');
 
@@ -92,7 +118,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
         tower,
         apartment,
         carNumbers: carNumber.trim() ? [normalizedPlate] : [],
-        ownedSpot: hasSpot ? spotNumber.trim() : null,
+        ownedSpot: hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null,
       });
       navigation.navigate('Done');
     } catch {
@@ -103,8 +129,12 @@ export default function CarNumberScreen({ navigation, route }: Props) {
   };
 
   // ─── Spot status indicator ────────────────────────────────
+  const spotDisplayName = spotFloor && spotNumber.trim()
+    ? `${spotFloor}-${spotNumber.trim()}`
+    : spotNumber.trim();
+
   const SpotStatusIndicator = () => {
-    if (!spotNumber.trim()) return null;
+    if (!spotFloor || !spotNumber.trim()) return null;
     switch (spotCheck.status) {
       case 'checking':
         return (
@@ -118,7 +148,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
           <View style={[st.banner, st.bannerGreen]}>
             <Text style={st.bannerIcon}>✓</Text>
             <Text style={[st.bannerText, { color: colors.success }]}>
-              חניה {spotNumber} פנויה — לא רשומה על שם אף אחד
+              חניה {spotDisplayName} פנויה — לא רשומה על שם אף אחד
             </Text>
           </View>
         );
@@ -127,8 +157,8 @@ export default function CarNumberScreen({ navigation, route }: Props) {
           <View style={[st.banner, st.bannerRed]}>
             <Text style={st.bannerIcon}>✕</Text>
             <Text style={[st.bannerText, { color: colors.error }]}>
-              חניה {spotNumber} כבר רשומה על שם דירה {spotCheck.apartment}
-              {' '}מגדל {spotCheck.tower}.{'\n'}
+              חניה {spotDisplayName} כבר רשומה על שם דירה {spotCheck.apartment}
+              {' '}{towerLabel(spotCheck.tower)}.{'\n'}
               אם זו טעות, פנה למנהל הבניין.
             </Text>
           </View>
@@ -185,7 +215,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
 
           <TouchableOpacity
             style={[styles.toggleBtn, hasSpot === false && styles.toggleBtnActive]}
-            onPress={() => { setHasSpot(false); setSpotNumber(''); setSpotCheck({ status: 'idle' }); }}
+            onPress={() => { setHasSpot(false); setSpotFloor(null); setSpotNumber(''); setSpotCheck({ status: 'idle' }); }}
             activeOpacity={0.8}
           >
             <Text style={styles.toggleIcon}>❌</Text>
@@ -197,6 +227,21 @@ export default function CarNumberScreen({ navigation, route }: Props) {
 
         {hasSpot === true && (
           <View style={styles.spotReveal}>
+            <Text style={styles.spotSubLabel}>קומת חניה</Text>
+            <View style={styles.floorRow}>
+              {FLOORS.map((f) => (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.floorBtn, spotFloor === f && styles.floorBtnActive]}
+                  onPress={() => handleFloorSelect(f)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.floorBtnText, spotFloor === f && styles.floorBtnTextActive]}>
+                    {f}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <Input
               label="מספר חניה"
               value={spotNumber}
@@ -206,10 +251,10 @@ export default function CarNumberScreen({ navigation, route }: Props) {
               textAlign="right"
             />
             <SpotStatusIndicator />
-            {spotCheck.status === 'idle' && spotNumber.trim().length === 0 && (
+            {(!spotFloor || (!spotNumber.trim() && spotCheck.status === 'idle')) && (
               <View style={styles.hintBox}>
                 <Text style={styles.hintText}>
-                  💡 המספר נבדק אוטומטית מול כל הדיירים הרשומים
+                  💡 בחר קומה והזן מספר חניה — ייבדק אוטומטית מול כל הדיירים
                 </Text>
               </View>
             )}
@@ -282,6 +327,22 @@ const styles = StyleSheet.create({
   toggleTextActive: { color: colors.accent, fontWeight: '700' },
 
   spotReveal: { marginTop: spacing.sm },
+  spotSubLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    textAlign: 'right',
+    marginBottom: spacing.sm,
+  },
+  floorRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  floorBtn: {
+    flex: 1, paddingVertical: spacing.sm,
+    borderRadius: radius.md, borderWidth: 1,
+    borderColor: colors.border, backgroundColor: colors.bgInput,
+    alignItems: 'center',
+  },
+  floorBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  floorBtnText: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
+  floorBtnTextActive: { color: colors.accent },
   hintBox: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.md,

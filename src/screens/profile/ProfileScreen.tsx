@@ -3,8 +3,22 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, Switch, Modal,
 } from 'react-native';
+
+const FLOORS = ['P1', 'P2', 'P3', 'P4'] as const;
+type ParkingFloor = typeof FLOORS[number];
+
+function buildSpotId(floor: ParkingFloor, number: string): string {
+  return `${floor}-${number.trim()}`;
+}
+
+function parseSpotId(spotId: string): { floor: ParkingFloor | null; number: string } {
+  const match = spotId.match(/^(P[1-4])-(.+)$/);
+  if (match) return { floor: match[1] as ParkingFloor, number: match[2] };
+  return { floor: null, number: spotId };
+}
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, signOut, useUserProfile, checkSpotTaken, UserProfile } from '../../config/firebase';
+import { towerLabel } from '../../utils/towerLabel';
 import { Button, Input } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import {
@@ -21,6 +35,7 @@ export default function ProfileScreen() {
   const [apartment, setApartment] = useState('');
   const [carNumber, setCarNumber] = useState('');
   const [hasSpot, setHasSpot]     = useState<boolean | null>(null);
+  const [spotFloor, setSpotFloor] = useState<ParkingFloor | null>(null);
   const [spotNumber, setSpotNumber] = useState('');
 
   const [spotCheck, setSpotCheck] = useState<
@@ -40,32 +55,32 @@ export default function ProfileScreen() {
     setApartment(profile.apartment ?? '');
     setCarNumber(profile.carNumbers?.[0] ?? '');
     setHasSpot(profile.ownedSpot !== null && profile.ownedSpot !== undefined);
-    setSpotNumber(profile.ownedSpot ?? '');
+    const parsed = parseSpotId(profile.ownedSpot ?? '');
+    setSpotFloor(parsed.floor);
+    setSpotNumber(parsed.number);
     setSpotCheck(profile.ownedSpot ? 'mine' : 'idle');
   }, [profile]);
 
   // ── Spot uniqueness check (debounced) ──────────────────
-  const handleSpotChange = (text: string) => {
-    setSpotNumber(text);
-    setDirty(true);
-
+  const triggerSpotCheck = (floor: ParkingFloor | null, number: string) => {
     if (debounce.current) clearTimeout(debounce.current);
+    if (!floor || !number.trim()) { setSpotCheck('idle'); return; }
 
-    // If same as current saved spot → no need to check
-    if (text.trim() === profile?.ownedSpot) {
+    const spotId = buildSpotId(floor, number);
+
+    // Same as currently saved spot → no need to check
+    if (spotId === profile?.ownedSpot) {
       setSpotCheck('mine');
       return;
     }
 
-    if (!text.trim()) { setSpotCheck('idle'); return; }
-
     setSpotCheck('checking');
     debounce.current = setTimeout(async () => {
       try {
-        const taken = await checkSpotTaken(text.trim());
+        const taken = await checkSpotTaken(spotId);
         if (taken) {
           setSpotCheck('taken');
-          setSpotTakenBy(`דירה ${taken.apartment} מגדל ${taken.tower}`);
+          setSpotTakenBy(`דירה ${taken.apartment} ${towerLabel(taken.tower)}`);
         } else {
           setSpotCheck('available');
         }
@@ -75,12 +90,24 @@ export default function ProfileScreen() {
     }, 600);
   };
 
+  const handleFloorSelect = (floor: ParkingFloor) => {
+    setSpotFloor(floor);
+    setDirty(true);
+    triggerSpotCheck(floor, spotNumber);
+  };
+
+  const handleSpotChange = (text: string) => {
+    setSpotNumber(text);
+    setDirty(true);
+    triggerSpotCheck(spotFloor, text);
+  };
+
   // ── Validation ─────────────────────────────────────────
   const plateNorm = carNumber.replace(/-/g, '');
   const carValid  = !carNumber.trim() || /^\d{7,8}$/.test(plateNorm);
   const spotReady =
     hasSpot === false ||
-    (hasSpot === true && spotNumber.trim() &&
+    (hasSpot === true && spotFloor !== null && spotNumber.trim() &&
       (spotCheck === 'available' || spotCheck === 'mine'));
   const canSave = dirty && name.trim().length > 1 && tower && apartment.trim() && carValid && spotReady && spotCheck !== 'checking';
 
@@ -95,7 +122,7 @@ export default function ProfileScreen() {
         tower:      tower!,
         apartment:  apartment.trim(),
         carNumbers: carNumber.trim() ? [plateNorm] : [],
-        ownedSpot:  hasSpot ? spotNumber.trim() : null,
+        ownedSpot:  hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null,
         updatedAt:  serverTimestamp(),
       };
       await updateDoc(doc(db, 'users', uid), updated);
@@ -134,7 +161,7 @@ export default function ProfileScreen() {
         <View style={s.headerInfo}>
           <Text style={s.headerName}>{name || '—'}</Text>
           <Text style={s.headerMeta}>
-            {tower ? `מגדל ${tower}` : ''}{apartment ? ` · דירה ${apartment}` : ''}
+            {tower ? towerLabel(tower) : ''}{apartment ? ` · דירה ${apartment}` : ''}
           </Text>
           {(profile as any)?.thanksCount > 0 && (
             <View style={s.thanksBadge}>
@@ -175,7 +202,7 @@ export default function ProfileScreen() {
               onPress={() => { setTower(t); setDirty(true); }}
               activeOpacity={0.8}
             >
-              <Text style={[s.toggleText, tower === t && s.toggleTextActive]}>מגדל {t}</Text>
+              <Text style={[s.toggleText, tower === t && s.toggleTextActive]}>{towerLabel(t)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -214,7 +241,7 @@ export default function ProfileScreen() {
               onPress={() => {
                 setHasSpot(val);
                 setDirty(true);
-                if (!val) { setSpotNumber(''); setSpotCheck('idle'); }
+                if (!val) { setSpotFloor(null); setSpotNumber(''); setSpotCheck('idle'); }
               }}
               activeOpacity={0.8}
             >
@@ -227,6 +254,19 @@ export default function ProfileScreen() {
 
         {hasSpot === true && (
           <>
+            <Text style={s.spotSubLabel}>קומת חניה</Text>
+            <View style={s.floorRow}>
+              {FLOORS.map((f) => (
+                <TouchableOpacity
+                  key={f}
+                  style={[s.floorBtn, spotFloor === f && s.floorBtnActive]}
+                  onPress={() => handleFloorSelect(f)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.floorBtnText, spotFloor === f && s.floorBtnTextActive]}>{f}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <Input
               label="מספר חניה"
               value={spotNumber}
@@ -235,7 +275,11 @@ export default function ProfileScreen() {
               keyboardType="numeric"
               textAlign="right"
             />
-            <SpotStatus status={spotCheck} takenBy={spotTakenBy} spot={spotNumber} />
+            <SpotStatus
+              status={spotCheck}
+              takenBy={spotTakenBy}
+              spot={spotFloor && spotNumber.trim() ? `${spotFloor}-${spotNumber.trim()}` : spotNumber}
+            />
           </>
         )}
 
@@ -985,6 +1029,23 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', textAlign: 'right', marginBottom: spacing.sm,
   },
   toggleRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+
+  spotSubLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    textAlign: 'right',
+    marginBottom: spacing.sm,
+  },
+  floorRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  floorBtn: {
+    flex: 1, paddingVertical: spacing.sm,
+    borderRadius: radius.md, borderWidth: 1,
+    borderColor: colors.border, backgroundColor: colors.bgInput,
+    alignItems: 'center',
+  },
+  floorBtnActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  floorBtnText: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
+  floorBtnTextActive: { color: colors.accent },
   toggle: {
     flex: 1, paddingVertical: spacing.md, borderRadius: radius.md,
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgInput,

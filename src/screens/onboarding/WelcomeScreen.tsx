@@ -32,7 +32,7 @@ export default function WelcomeScreen({ navigation }: Props) {
         </View>
 
         {/* Headline */}
-        <Text style={styles.hero}>חניון{'\n'}החנייה שלנו</Text>
+        <Text style={styles.hero}>Upper House{'\n'}Parking</Text>
         <Text style={styles.sub}>
           ניהול חניות משותף לשכנים —{'\n'}ללא קבוצות וואטסאפ, בלחיצה אחת.
         </Text>
