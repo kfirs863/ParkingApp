@@ -108,8 +108,11 @@ export default function OTPScreen({ navigation, route }: Props) {
             onChangeText={(t) => handleDigit(t, i)}
             onKeyPress={({ nativeEvent }) => handleBackspace(nativeEvent.key, i)}
             keyboardType="number-pad"
-            maxLength={1}
+            maxLength={6}
             textAlign="center"
+            // iOS: triggers SMS AutoFill on all boxes
+            textContentType="oneTimeCode"
+            // Android: triggers SMS AutoFill on the first box
             autoComplete={i === 0 ? 'sms-otp' : 'off'}
           />
         ))}
@@ -167,6 +170,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...typography.title,
     color: colors.textPrimary,
+    // Force LTR rendering so digit displays correctly on RTL (Hebrew) devices
+    writingDirection: 'ltr',
   },
   codeBoxFilled: {
     borderColor: colors.accent,
