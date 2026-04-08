@@ -35,6 +35,8 @@ export default function ProfileScreen() {
   const [dirty, setDirty]   = useState(false);
 
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { return () => { mounted.current = false; }; }, []);
 
   // ── Populate fields from profile ───────────────────────
   useEffect(() => {
@@ -67,6 +69,7 @@ export default function ProfileScreen() {
     debounce.current = setTimeout(async () => {
       try {
         const taken = await checkSpotTaken(spotId);
+        if (!mounted.current) return;
         if (taken) {
           setSpotCheck('taken');
           setSpotTakenBy(`דירה ${taken.apartment} ${towerLabel(taken.tower)}`);
@@ -74,6 +77,7 @@ export default function ProfileScreen() {
           setSpotCheck('available');
         }
       } catch {
+        if (!mounted.current) return;
         setSpotCheck('idle');
       }
     }, 600);

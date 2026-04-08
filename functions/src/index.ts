@@ -113,7 +113,7 @@ export const onParkingRequestUpdated = functions
       const token = await getToken(after.requesterId);
       if (token) await sendPush(token, after.requesterId,
         'הבקשה שלך אושרה!',
-        `חניה ${after.spotNumber} של ${after.ownerName} זמינה עד ${fmtTime(after.toTime)}. הכנס מספר רכב לאישור.`,
+        `חניה ${after.spotNumber ?? '?'} של ${after.ownerName ?? 'בעל החניה'} זמינה עד ${fmtTime(after.toTime)}. הכנס מספר רכב לאישור.`,
         { requestId: id, action: 'confirm_car' }
       );
     }
@@ -123,7 +123,7 @@ export const onParkingRequestUpdated = functions
       const token = await getToken(after.requesterId);
       if (token) await sendPush(token, after.requesterId,
         'האורח שלך יכול לחנות!',
-        `חניה ${after.spotNumber} של ${after.ownerName} אושרה עד ${fmtTime(after.toTime)}.`,
+        `חניה ${after.spotNumber ?? '?'} של ${after.ownerName ?? 'בעל החניה'} אושרה עד ${fmtTime(after.toTime)}.`,
         { requestId: id, action: 'view_active' }
       );
     }
@@ -133,7 +133,7 @@ export const onParkingRequestUpdated = functions
       const token = await getToken(after.ownerId);
       if (token) await sendPush(token, after.ownerId,
         'מישהו נכנס לחניה שלך',
-        `${after.requesterName} חונה בחניה ${after.spotNumber} עד ${fmtTime(after.toTime)}.`,
+        `${after.requesterName ?? 'הדייר'} חונה בחניה ${after.spotNumber ?? '?'} עד ${fmtTime(after.toTime)}.`,
         { requestId: id, action: 'view_active' }
       );
     }
@@ -144,7 +144,7 @@ export const onParkingRequestUpdated = functions
         const token = await getToken(after.requesterId);
         if (token) await sendPush(token, after.requesterId,
           'האישור בוטל',
-          `${after.ownerName} ביטל את אישור החניה. שלח בקשה חדשה.`,
+          `${after.ownerName ?? 'בעל החניה'} ביטל את אישור החניה. שלח בקשה חדשה.`,
           { requestId: id, action: 'cancelled' }
         );
       }
@@ -152,7 +152,7 @@ export const onParkingRequestUpdated = functions
         const token = await getToken(after.ownerId);
         if (token) await sendPush(token, after.ownerId,
           'החניה שלך פנויה',
-          `${after.requesterName} יצא מהחניה לפני הזמן.`,
+          `${after.requesterName ?? 'הדייר'} יצא מהחניה לפני הזמן.`,
           { requestId: id, action: 'freed' }
         );
       }
@@ -289,7 +289,10 @@ export const generateRecurringAvailability = functions
 
     if (rulesSnap.empty) return;
 
-    const batch = db.batch();
+    // Firestore batches are limited to 500 operations
+    const BATCH_SIZE = 499;
+    let batch = db.batch();
+    let batchCount = 0;
 
     for (const d of rulesSnap.docs) {
       const rule = d.data();
@@ -329,9 +332,16 @@ export const generateRecurringAvailability = functions
         isRecurring:    true,
         createdAt:      admin.firestore.Timestamp.now(),
       });
+      batchCount++;
+
+      if (batchCount >= BATCH_SIZE) {
+        await batch.commit();
+        batch = db.batch();
+        batchCount = 0;
+      }
     }
 
-    await batch.commit();
+    if (batchCount > 0) await batch.commit();
     functions.logger.info(`Generated recurring windows for ${rulesSnap.size} rules`);
   });
 

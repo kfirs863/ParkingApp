@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
   ActivityIndicator,
@@ -37,6 +37,8 @@ export default function CarNumberScreen({ navigation, route }: Props) {
 
   const [loading, setLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { return () => { mounted.current = false; }; }, []);
 
   // ─── Spot uniqueness check (debounced) ───────────────────
   const triggerSpotCheck = (floor: ParkingFloor | null, number: string) => {
@@ -49,12 +51,14 @@ export default function CarNumberScreen({ navigation, route }: Props) {
     debounceTimer.current = setTimeout(async () => {
       try {
         const taken = await checkSpotTaken(spotId);
+        if (!mounted.current) return;
         if (taken) {
           setSpotCheck({ status: 'taken', apartment: taken.apartment, tower: taken.tower });
         } else {
           setSpotCheck({ status: 'available' });
         }
       } catch {
+        if (!mounted.current) return;
         setSpotCheck({ status: 'error' });
       }
     }, 600);

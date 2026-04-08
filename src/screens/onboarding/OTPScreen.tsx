@@ -20,6 +20,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const { phone } = route.params;
   const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
@@ -116,19 +117,23 @@ export default function OTPScreen({ navigation, route }: Props) {
 
       {/* Resend */}
       <TouchableOpacity
-        disabled={countdown > 0}
+        disabled={countdown > 0 || sending}
         onPress={async () => {
+          if (sending) return;
+          setSending(true);
           try {
             await sendOTP(phone);
             setCountdown(30);
           } catch {
             Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');
+          } finally {
+            setSending(false);
           }
         }}
         style={styles.resendWrap}
       >
-        <Text style={[styles.resend, countdown > 0 && styles.resendDisabled]}>
-          {countdown > 0 ? `שלח שוב בעוד ${countdown} שניות` : 'שלח קוד חדש'}
+        <Text style={[styles.resend, (countdown > 0 || sending) && styles.resendDisabled]}>
+          {sending ? 'שולח...' : countdown > 0 ? `שלח שוב בעוד ${countdown} שניות` : 'שלח קוד חדש'}
         </Text>
       </TouchableOpacity>
 

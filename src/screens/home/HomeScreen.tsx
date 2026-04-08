@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, ActivityIndicator, Alert, Modal, Linking,
@@ -726,6 +726,11 @@ export default function HomeScreen({ navigation }: Props) {
   const [gaveTarget, setGaveTarget] = useState<ParkingRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Track which deep-link IDs have already opened their modal, so onSnapshot
+  // re-fires don't re-open the modal after the user dismisses it.
+  const handledConfirmRef = useRef<string | null>(null);
+  const handledApproveRef = useRef<string | null>(null);
+
   const uid = auth.currentUser?.uid;
   const othersReqs = openReqs.filter((r) => r.requesterId !== uid);
   const pendingConfirm = myReqs.find((r) => r.status === 'approved');
@@ -734,16 +739,22 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const requestId = route.params?.openConfirm;
     if (!requestId || myReqs.length === 0) return;
+    if (handledConfirmRef.current === requestId) return;
     const target = myReqs.find((r) => r.id === requestId && r.status === 'approved');
-    if (target) setConfirmTarget(target);
+    if (target) {
+      handledConfirmRef.current = requestId;
+      setConfirmTarget(target);
+    }
   }, [route.params?.openConfirm, myReqs]);
 
   // Auto-open approve modal from push notification
   useEffect(() => {
     const requestId = route.params?.openApprove;
     if (!requestId || openReqs.length === 0) return;
+    if (handledApproveRef.current === requestId) return;
     const target = openReqs.find((r) => r.id === requestId && r.status === 'open');
     if (target) {
+      handledApproveRef.current = requestId;
       setTab('all');
       setApproveTarget(target);
     }

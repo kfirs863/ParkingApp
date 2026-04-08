@@ -79,9 +79,11 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
 export async function verifyOTP(code: string): Promise<void> {
   if (!_confirmationResult) throw new Error('No verification in progress — resend the code');
 
-  // 1. Confirm OTP via native SDK — uses the native session held in _confirmationResult
-  await _confirmationResult.confirm(code);
-  _confirmationResult = null;
+  // Capture locally so a concurrent sendOTP call can't clobber it mid-flight
+  const result = _confirmationResult;
+
+  // 1. Confirm OTP via native SDK — uses the native session held in result
+  await result.confirm(code);
 
   // 2. Exchange the native user's ID token for a custom token so the JS SDK
   //    auth (used by Firestore security rules) shares the same session.
@@ -91,6 +93,10 @@ export async function verifyOTP(code: string): Promise<void> {
   const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
   const { data } = await withTimeout(mintToken({ idToken }), 20000);
   await _signInWithCustomToken(auth, data.customToken);
+
+  // Only clear after the entire flow succeeds — keeps result alive for retries
+  // if mintCustomToken throws (network error, cold-start timeout, etc.)
+  _confirmationResult = null;
 }
 
 // ─── User Profile ─────────────────────────────────────────
