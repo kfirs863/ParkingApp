@@ -4,6 +4,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { navigate } from '../navigation/navigationRef';
 import { Platform } from 'react-native';
+import { withTimeout } from '../utils/withTimeout';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -29,6 +30,16 @@ export function usePushNotifications(uid: string | null) {
     });
     return () => sub.remove();
   }, []);
+
+  // Handle cold-start: app was fully killed, user tapped a notification to launch it.
+  // The response listener above won't catch this because it wasn't registered yet.
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content.data as Record<string, string>;
+      handleNotificationAction(data);
+    });
+  }, []);
 }
 
 async function registerForPushNotifications(uid: string): Promise<void> {
@@ -53,11 +64,11 @@ async function registerForPushNotifications(uid: string): Promise<void> {
 
   const tokenData = await Notifications.getDevicePushTokenAsync();
 
-  await setDoc(doc(db, 'users', uid), {
+  await withTimeout(setDoc(doc(db, 'users', uid), {
     fcmToken: tokenData.data,
     fcmTokenUpdatedAt: serverTimestamp(),
     platform: Platform.OS,
-  }, { merge: true });
+  }, { merge: true }));
 }
 
 function handleNotificationAction(data: Record<string, string>): void {

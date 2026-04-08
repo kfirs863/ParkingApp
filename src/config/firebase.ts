@@ -113,7 +113,7 @@ export async function checkSpotTaken(spotNumber: string): Promise<{ apartment: s
   const uid = auth.currentUser?.uid;
   const trimmed = spotNumber.trim();
   if (!trimmed) return null;
-  const snap = await getDocs(query(collection(db, 'users'), where('ownedSpot', '==', trimmed)));
+  const snap = await withTimeout(getDocs(query(collection(db, 'users'), where('ownedSpot', '==', trimmed))));
   const others = snap.docs.filter((d) => d.id !== uid);
   if (others.length === 0) return null;
   const data = others[0].data();
@@ -124,15 +124,15 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
   const ref = doc(db, 'users', user.uid);
-  const existing = await getDoc(ref);
+  const existing = await withTimeout(getDoc(ref));
   const existingData = existing.exists() ? existing.data() : null;
-  await setDoc(ref, {
+  await withTimeout(setDoc(ref, {
     ...profile,
     phone: user.phoneNumber,
     updatedAt: serverTimestamp(),
     ...(!existingData?.createdAt ? { createdAt: serverTimestamp() } : {}),
     ...(existingData?.pushGeneral === undefined ? { pushGeneral: true } : {}),
-  }, { merge: true });
+  }, { merge: true }));
 }
 
 export function useUserProfile() {

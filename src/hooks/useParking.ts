@@ -179,14 +179,14 @@ export async function createRequest(params: {
   if (!user) throw new Error('Not authenticated');
 
   // ── 1. Prevent duplicate active requests ───────────────
-  const existing = await getDocs(
+  const existing = await withTimeout(getDocs(
     query(
       collection(db, 'parkingRequests'),
       where('requesterId', '==', user.uid),
       where('status', 'in', ['open', 'approved']),
       where('toTime', '>', Timestamp.now())
     )
-  );
+  ));
   if (!existing.empty) throw new Error('DUPLICATE_REQUEST');
 
   const ref = await withTimeout(addDoc(collection(db, 'parkingRequests'), {
