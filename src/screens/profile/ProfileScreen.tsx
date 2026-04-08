@@ -4,18 +4,7 @@ import {
   Alert, ActivityIndicator, Switch, Modal,
 } from 'react-native';
 
-const FLOORS = ['P1', 'P2', 'P3', 'P4'] as const;
-type ParkingFloor = typeof FLOORS[number];
-
-function buildSpotId(floor: ParkingFloor, number: string): string {
-  return `${floor}-${number.trim()}`;
-}
-
-function parseSpotId(spotId: string): { floor: ParkingFloor | null; number: string } {
-  const match = spotId.match(/^(P[1-4])-(.+)$/);
-  if (match) return { floor: match[1] as ParkingFloor, number: match[2] };
-  return { floor: null, number: spotId };
-}
+import { FLOORS, ParkingFloor, buildSpotId, parseSpotId } from '../../utils/spotId';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, signOut, useUserProfile, checkSpotTaken, UserProfile } from '../../config/firebase';
 import { towerLabel } from '../../utils/towerLabel';

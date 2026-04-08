@@ -160,15 +160,13 @@ export const onParkingRequestUpdated = functions
   });
 
 // ─────────────────────────────────────────────────────────
-// TRIGGER: new open request
+// TRIGGER: new open request → broadcast to all eligible owners
 //
-// FIX: unified into ONE trigger — no double-push.
-// Logic:
-//   1. Find owners with matching availability window → send targeted push
-//   2. If ANY targeted push was sent → skip broadcast entirely
-//   3. If NO targeted owners → broadcast to opt-in owners only
-//
-// Result: every owner gets AT MOST ONE notification per request.
+// Sends a push notification to every spot owner who:
+//   - has a registered spot (ownedSpot != null)
+//   - hasn't opted out of notifications (pushGeneral != false)
+//   - isn't the requester themselves
+//   - doesn't have an overlapping active booking on their spot
 // ─────────────────────────────────────────────────────────
 export const onNewParkingRequest = functions
   .region('europe-west1')

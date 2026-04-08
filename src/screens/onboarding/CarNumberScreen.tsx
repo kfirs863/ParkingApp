@@ -10,20 +10,7 @@ import { Button, Input, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { saveUserProfile, checkSpotTaken } from '../../config/firebase';
 import { towerLabel } from '../../utils/towerLabel';
-
-const FLOORS = ['P1', 'P2', 'P3', 'P4'] as const;
-type ParkingFloor = typeof FLOORS[number];
-
-function buildSpotId(floor: ParkingFloor, number: string): string {
-  return `${floor}-${number.trim()}`;
-}
-
-function parseSpotId(spotId: string): { floor: ParkingFloor | null; number: string } {
-  const match = spotId.match(/^(P[1-4])-(.+)$/);
-  if (match) return { floor: match[1] as ParkingFloor, number: match[2] };
-  // Legacy: plain number without floor
-  return { floor: null, number: spotId };
-}
+import { FLOORS, ParkingFloor, buildSpotId, parseSpotId } from '../../utils/spotId';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'CarNumber'>;

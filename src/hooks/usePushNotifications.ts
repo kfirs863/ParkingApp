@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { navigate } from '../navigation/navigationRef';
 import { Platform } from 'react-native';
@@ -55,7 +55,7 @@ async function registerForPushNotifications(uid: string): Promise<void> {
 
   await setDoc(doc(db, 'users', uid), {
     fcmToken: tokenData.data,
-    fcmTokenUpdatedAt: new Date(),
+    fcmTokenUpdatedAt: serverTimestamp(),
     platform: Platform.OS,
   }, { merge: true });
 }
