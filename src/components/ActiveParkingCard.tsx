@@ -71,7 +71,9 @@ export const ActiveParkingCard: React.FC<ActiveParkingCardProps> = ({
       </View>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>לחץ לפרטים וניהול</Text>
+        <Text style={s.footerText}>
+          {timeLeft === 'הסתיים' ? 'זמן החניה הסתיים' : 'לחץ לפרטים וניהול'}
+        </Text>
       </View>
     </TouchableOpacity>
   );

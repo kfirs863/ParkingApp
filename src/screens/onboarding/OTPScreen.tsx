@@ -69,7 +69,14 @@ export default function OTPScreen({ navigation, route }: Props) {
       navigation.navigate('Profile');
     } catch (e: any) {
       console.error('verifyOTP error:', e?.code, e?.message, e);
-      Alert.alert('שגיאה', e?.message || 'הקוד שהזנת אינו תקין, נסה שוב');
+      if (e?.message?.includes('No verification in progress')) {
+        Alert.alert(
+          'תם תוקף האימות',
+          'האימות פג תוקף — ייתכן שהאפליקציה נסגרה. לחץ "שלח קוד חדש" ונסה שנית.',
+        );
+      } else {
+        Alert.alert('קוד שגוי', 'הקוד שהזנת אינו תקין, נסה שוב');
+      }
       setCode(Array(CODE_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } finally {

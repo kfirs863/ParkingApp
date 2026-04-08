@@ -28,6 +28,9 @@ export function useMyAvailabilityRules() {
     return onSnapshot(q, (snap) => {
       setRules(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AvailabilityRule)));
       setLoading(false);
+    }, (err) => {
+      console.error('Availability rules snapshot error:', err);
+      setLoading(false);
     });
   }, [uid]);
 

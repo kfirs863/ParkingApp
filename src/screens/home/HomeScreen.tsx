@@ -210,8 +210,13 @@ function ConfirmCarModal({
       await confirmParking(request.id, carNumber);
       onClose();
       Alert.alert('מעולה!', 'חניה ' + request.spotNumber + ' מאושרת. כנס/י לחנות!');
-    } catch {
-      Alert.alert('שגיאה', 'לא ניתן לאשר, נסה שוב');
+    } catch (e: any) {
+      const message = e?.message;
+      if (message === 'NOT_APPROVED' || message === 'NOT_FOUND' || e?.code === 'permission-denied') {
+        Alert.alert('לא ניתן לאשר', 'הבקשה כבר לא פעילה — ייתכן שפג תוקפה או שבעל החניה ביטל.');
+      } else {
+        Alert.alert('שגיאה', 'לא ניתן לאשר, נסה שוב');
+      }
     } finally {
       setLoading(false);
     }

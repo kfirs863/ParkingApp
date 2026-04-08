@@ -213,43 +213,51 @@ export const expireStaleRequests = functions
 
     if (staleSnap.empty) return;
 
-    const batch = db.batch();
     const pushPromises: Promise<void>[] = [];
 
-    staleSnap.docs.forEach((d) => {
-      const data = d.data() as ParkingRequest;
-      batch.update(d.ref, { status: 'expired', expiredAt: now });
+    // Firestore batches are limited to 500 operations
+    const BATCH_SIZE = 499;
+    for (let i = 0; i < staleSnap.docs.length; i += BATCH_SIZE) {
+      const chunk = staleSnap.docs.slice(i, i + BATCH_SIZE);
+      const batch = db.batch();
 
-      // Notify requester
-      if (data.requesterId) {
-        pushPromises.push(
-          getToken(data.requesterId).then((token) => {
-            if (!token) return;
-            return sendPush(token, data.requesterId,
-              'הבקשה שלך לא אושרה',
-              `הבקשה ל-${fmtTime(data.toTime)} פגה תוקף. שלח בקשה חדשה אם עדיין צריך.`,
-              { action: 'expired' }
-            );
-          })
-        );
-      }
+      chunk.forEach((d) => {
+        const data = d.data() as ParkingRequest;
+        batch.update(d.ref, { status: 'expired', expiredAt: now });
 
-      // Notify owner that their spot is free again (only if they had approved)
-      if (data.status === 'approved' && data.ownerId) {
-        pushPromises.push(
-          getToken(data.ownerId).then((token) => {
-            if (!token) return;
-            return sendPush(token, data.ownerId!,
-              'החניה שלך פנויה שוב',
-              `${data.requesterName} לא אישר/ה את קבלת החניה בזמן. החניה שלך חופשייה.`,
-              { action: 'freed' }
-            );
-          })
-        );
-      }
-    });
+        // Notify requester
+        if (data.requesterId) {
+          pushPromises.push(
+            getToken(data.requesterId).then((token) => {
+              if (!token) return;
+              return sendPush(token, data.requesterId,
+                'הבקשה שלך לא אושרה',
+                `הבקשה ל-${fmtTime(data.toTime)} פגה תוקף. שלח בקשה חדשה אם עדיין צריך.`,
+                { action: 'expired' }
+              );
+            })
+          );
+        }
 
-    await Promise.all([batch.commit(), ...pushPromises]);
+        // Notify owner that their spot is free again (only if they had approved)
+        if (data.status === 'approved' && data.ownerId) {
+          pushPromises.push(
+            getToken(data.ownerId).then((token) => {
+              if (!token) return;
+              return sendPush(token, data.ownerId!,
+                'החניה שלך פנויה שוב',
+                `${data.requesterName} לא אישר/ה את קבלת החניה בזמן. החניה שלך חופשייה.`,
+                { action: 'freed' }
+              );
+            })
+          );
+        }
+      });
+
+      await batch.commit();
+    }
+
+    await Promise.all(pushPromises);
     functions.logger.info(`Expired ${staleSnap.size} stale requests`);
   });
 

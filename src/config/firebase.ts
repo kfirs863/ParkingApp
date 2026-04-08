@@ -53,8 +53,13 @@ const fns = getFunctions(app, 'europe-west1');
 
 // ─── Auth helpers ──────────────────────────────────────────
 export async function signOut() {
-  await rnSignOut(getRNAuth());
-  return _signOut(auth);
+  const errors: Error[] = [];
+  try { await rnSignOut(getRNAuth()); } catch (e: any) { errors.push(e); }
+  try { await _signOut(auth); } catch (e: any) { errors.push(e); }
+  if (errors.length > 0) {
+    console.error('Sign out errors:', errors);
+    // Still proceed — partial sign out is better than stuck state
+  }
 }
 
 export function onAuthStateChanged(callback: (user: User | null) => void) {

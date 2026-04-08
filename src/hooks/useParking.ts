@@ -55,6 +55,9 @@ export function useOpenRequests() {
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(toRequest));
       setLoading(false);
+    }, (err) => {
+      console.error('Open requests snapshot error:', err);
+      setLoading(false);
     });
   }, []);
   return { requests, loading };
@@ -75,6 +78,9 @@ export function useMyRequests() {
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(toRequest));
       setLoading(false);
+    }, (err) => {
+      console.error('My requests snapshot error:', err);
+      setLoading(false);
     });
   }, [uid]);
   return { requests, loading };
@@ -94,6 +100,9 @@ export function useMyApprovals() {
     );
     return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map(toRequest));
+      setLoading(false);
+    }, (err) => {
+      console.error('My approvals snapshot error:', err);
       setLoading(false);
     });
   }, [uid]);
@@ -136,9 +145,17 @@ export function useActiveParking() {
       requesterResult = snap.docs.map(toRequest).find(isActive) ?? null;
       requesterReady = true;
       update();
+    }, (err) => {
+      console.error('Active parking requester snapshot error:', err);
+      requesterReady = true;
+      update();
     });
     const unsub2 = onSnapshot(qOwner, (snap) => {
       ownerResult = snap.docs.map(toRequest).find(isActive) ?? null;
+      ownerReady = true;
+      update();
+    }, (err) => {
+      console.error('Active parking owner snapshot error:', err);
       ownerReady = true;
       update();
     });
@@ -260,10 +277,16 @@ export async function cancelApproval(requestId: string): Promise<void> {
 }
 
 export async function confirmParking(requestId: string, carNumber: string): Promise<void> {
-  await updateDoc(doc(db, 'parkingRequests', requestId), {
-    status: 'confirmed',
-    carNumber: carNumber.replace(/-/g, '').trim(),
-    confirmedAt: serverTimestamp(),
+  const reqRef = doc(db, 'parkingRequests', requestId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(reqRef);
+    if (!snap.exists()) throw new Error('NOT_FOUND');
+    if (snap.data().status !== 'approved') throw new Error('NOT_APPROVED');
+    tx.update(reqRef, {
+      status: 'confirmed',
+      carNumber: carNumber.replace(/-/g, '').trim(),
+      confirmedAt: serverTimestamp(),
+    });
   });
 }
 
