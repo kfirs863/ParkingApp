@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, Alert
+  View, Text, StyleSheet, TextInput, TouchableOpacity, Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -16,13 +16,19 @@ type Props = {
 
 const CODE_LENGTH = 6;
 
+const toLatinDigit = (str: string): string =>
+  str
+    .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06F0));
+
 export default function OTPScreen({ navigation, route }: Props) {
   const { phone } = route.params;
-  const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
+  // Single string — the hidden TextInput is the source of truth
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const inputRef = useRef<TextInput | null>(null);
 
   // Countdown for resend
   useEffect(() => {
@@ -31,42 +37,17 @@ export default function OTPScreen({ navigation, route }: Props) {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const toLatinDigit = (str: string): string =>
-    // Normalize Arabic-Indic (٠-٩) and Extended Arabic-Indic (۰-۹) to ASCII 0-9
-    str
-      .replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 0x0660))
-      .replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 0x06F0));
-
-  const handleDigit = (text: string, index: number) => {
-    const digits = toLatinDigit(text).replace(/\D/g, '');
-    if (digits.length > 1) {
-      // Autofill paste — distribute digits across all boxes
-      const next = Array(CODE_LENGTH).fill('');
-      digits.slice(0, CODE_LENGTH).split('').forEach((d, i) => { next[i] = d; });
-      setCode(next);
-      inputRefs.current[Math.min(digits.length, CODE_LENGTH) - 1]?.focus();
-      return;
-    }
-    const digit = digits;
-    const next = [...code];
-    next[index] = digit;
-    setCode(next);
-    if (digit && index < CODE_LENGTH - 1) inputRefs.current[index + 1]?.focus();
+  const handleChange = (text: string) => {
+    const digits = toLatinDigit(text).replace(/\D/g, '').slice(0, CODE_LENGTH);
+    setCode(digits);
   };
 
-  const handleBackspace = (key: string, index: number) => {
-    if (key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const fullCode = code.join('');
-  const isComplete = code.every((d) => d.length === 1);
+  const isComplete = code.length === CODE_LENGTH;
 
   const handleVerify = async () => {
     setLoading(true);
     try {
-      await verifyOTP(fullCode);
+      await verifyOTP(code);
       navigation.navigate('Profile');
     } catch (e: any) {
       console.error('verifyOTP error:', e?.code, e?.message, e);
@@ -78,8 +59,8 @@ export default function OTPScreen({ navigation, route }: Props) {
       } else {
         Alert.alert('קוד שגוי', 'הקוד שהזנת אינו תקין, נסה שוב');
       }
-      setCode(Array(CODE_LENGTH).fill(''));
-      inputRefs.current[0]?.focus();
+      setCode('');
+      inputRef.current?.focus();
     } finally {
       setLoading(false);
     }
@@ -97,26 +78,44 @@ export default function OTPScreen({ navigation, route }: Props) {
         <Text style={styles.phone}>{displayPhone}</Text>
       </Text>
 
-      {/* OTP Boxes */}
-      <View style={styles.codeRow}>
-        {Array(CODE_LENGTH).fill(null).map((_, i) => (
-          <TextInput
-            key={i}
-            ref={(r) => { inputRefs.current[i] = r; }}
-            style={[styles.codeBox, code[i] ? styles.codeBoxFilled : null]}
-            value={code[i]}
-            onChangeText={(t) => handleDigit(t, i)}
-            onKeyPress={({ nativeEvent }) => handleBackspace(nativeEvent.key, i)}
-            keyboardType="number-pad"
-            maxLength={6}
-            textAlign="center"
-            // iOS: triggers SMS AutoFill on all boxes
-            textContentType="oneTimeCode"
-            // Android: triggers SMS AutoFill on the first box
-            autoComplete={i === 0 ? 'sms-otp' : 'off'}
-          />
-        ))}
-      </View>
+      {/* Visual boxes — tapping them focuses the hidden input */}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={() => inputRef.current?.focus()}
+        style={styles.codeRow}
+      >
+        {Array(CODE_LENGTH).fill(null).map((_, i) => {
+          const digit = code[i] ?? '';
+          const isFocused = code.length === i;
+          return (
+            <View
+              key={i}
+              style={[
+                styles.codeBox,
+                digit ? styles.codeBoxFilled : null,
+                isFocused ? styles.codeBoxFocused : null,
+              ]}
+            >
+              <Text style={styles.codeDigit}>{digit}</Text>
+            </View>
+          );
+        })}
+      </TouchableOpacity>
+
+      {/* Hidden real input — handles keyboard + SMS AutoFill */}
+      <TextInput
+        ref={inputRef}
+        style={styles.hiddenInput}
+        value={code}
+        onChangeText={handleChange}
+        keyboardType="number-pad"
+        maxLength={CODE_LENGTH}
+        autoFocus
+        // Android SMS AutoFill
+        autoComplete="sms-otp"
+        // iOS SMS AutoFill
+        textContentType="oneTimeCode"
+      />
 
       {/* Resend */}
       <TouchableOpacity
@@ -168,14 +167,30 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    ...typography.title,
-    color: colors.textPrimary,
-    // Force LTR rendering so digit displays correctly on RTL (Hebrew) devices
-    writingDirection: 'ltr',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   codeBoxFilled: {
     borderColor: colors.accent,
     backgroundColor: colors.accentDim,
+  },
+  codeBoxFocused: {
+    borderColor: colors.accent,
+    borderWidth: 2,
+  },
+  codeDigit: {
+    ...typography.title,
+    color: colors.textPrimary,
+    // Force LTR so digit renders correctly on RTL (Hebrew) devices
+    writingDirection: 'ltr',
+  },
+
+  // Visually hidden — positioned off-screen so it can still receive input and AutoFill
+  hiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 
   resendWrap: { alignItems: 'center', marginBottom: spacing.xl },
