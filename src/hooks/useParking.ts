@@ -5,6 +5,7 @@ import {
   orderBy, Timestamp, runTransaction, getDoc, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { withTimeout } from '../utils/withTimeout';
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ export async function createRequest(params: {
   );
   if (!existing.empty) throw new Error('DUPLICATE_REQUEST');
 
-  const ref = await addDoc(collection(db, 'parkingRequests'), {
+  const ref = await withTimeout(addDoc(collection(db, 'parkingRequests'), {
     requesterId: user.uid,
     requesterName: params.requesterProfile.name,
     requesterApartment: params.requesterProfile.apartment,
@@ -202,7 +203,7 @@ export async function createRequest(params: {
       : { isGuest: false }
     ),
     createdAt: serverTimestamp(),
-  });
+  }));
   return ref.id;
 }
 
@@ -220,7 +221,7 @@ export async function approveRequest(
 
   const reqRef = doc(db, 'parkingRequests', requestId);
 
-  await runTransaction(db, async (tx) => {
+  await withTimeout(runTransaction(db, async (tx) => {
     const snap = await tx.get(reqRef);
     if (!snap.exists()) throw new Error('NOT_FOUND');
 
@@ -242,7 +243,7 @@ export async function approveRequest(
       approvedAt: serverTimestamp(),
       ...(alreadyHasCar ? { confirmedAt: serverTimestamp() } : {}),
     });
-  });
+  }));
 }
 
 /**
@@ -254,7 +255,7 @@ export async function cancelApproval(requestId: string): Promise<void> {
 
   const reqRef = doc(db, 'parkingRequests', requestId);
 
-  await runTransaction(db, async (tx) => {
+  await withTimeout(runTransaction(db, async (tx) => {
     const snap = await tx.get(reqRef);
     if (!snap.exists()) throw new Error('NOT_FOUND');
 
@@ -273,12 +274,12 @@ export async function cancelApproval(requestId: string): Promise<void> {
       spotNumber: null,
       approvedAt: null,
     });
-  });
+  }));
 }
 
 export async function confirmParking(requestId: string, carNumber: string): Promise<void> {
   const reqRef = doc(db, 'parkingRequests', requestId);
-  await runTransaction(db, async (tx) => {
+  await withTimeout(runTransaction(db, async (tx) => {
     const snap = await tx.get(reqRef);
     if (!snap.exists()) throw new Error('NOT_FOUND');
     if (snap.data().status !== 'approved') throw new Error('NOT_APPROVED');
@@ -287,21 +288,21 @@ export async function confirmParking(requestId: string, carNumber: string): Prom
       carNumber: carNumber.replace(/-/g, '').trim(),
       confirmedAt: serverTimestamp(),
     });
-  });
+  }));
 }
 
 export async function cancelRequest(requestId: string): Promise<void> {
-  await updateDoc(doc(db, 'parkingRequests', requestId), {
+  await withTimeout(updateDoc(doc(db, 'parkingRequests', requestId), {
     status: 'cancelled',
     cancelledAt: serverTimestamp(),
-  });
+  }));
 }
 
 export async function completeParking(requestId: string): Promise<void> {
-  await updateDoc(doc(db, 'parkingRequests', requestId), {
+  await withTimeout(updateDoc(doc(db, 'parkingRequests', requestId), {
     status: 'completed',
     completedAt: serverTimestamp(),
-  });
+  }));
 }
 
 /** Publish a one-off availability window (owner offers their spot) */

@@ -18,6 +18,8 @@ import { Input } from '../../components';
 import { ActiveParkingCard } from '../../components/ActiveParkingCard';
 import { useActiveParking } from '../../hooks/useParking';
 import { towerLabel } from '../../utils/towerLabel';
+import { TimeoutError } from '../../utils/withTimeout';
+import { OfflineBanner } from '../../components/OfflineBanner';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
 
@@ -65,7 +67,9 @@ function ApproveModal({
       onClose();
       Alert.alert('אישרת!', request.requesterName + ' יקבל/ת התראה ויכנס/תכנס מספר רכב.');
     } catch (e: any) {
-      if (e?.message === 'ALREADY_TAKEN') {
+      if (e instanceof TimeoutError) {
+        Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else if (e?.message === 'ALREADY_TAKEN') {
         Alert.alert('מאוחר מדי', 'מישהו אחר כבר אישר את הבקשה הזו.');
       } else {
         Alert.alert('שגיאה', 'לא ניתן לשלוח אישור');
@@ -211,11 +215,15 @@ function ConfirmCarModal({
       onClose();
       Alert.alert('מעולה!', 'חניה ' + request.spotNumber + ' מאושרת. כנס/י לחנות!');
     } catch (e: any) {
-      const message = e?.message;
-      if (message === 'NOT_APPROVED' || message === 'NOT_FOUND' || e?.code === 'permission-denied') {
-        Alert.alert('לא ניתן לאשר', 'הבקשה כבר לא פעילה — ייתכן שפג תוקפה או שבעל החניה ביטל.');
+      if (e instanceof TimeoutError) {
+        Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else {
-        Alert.alert('שגיאה', 'לא ניתן לאשר, נסה שוב');
+        const message = e?.message;
+        if (message === 'NOT_APPROVED' || message === 'NOT_FOUND' || e?.code === 'permission-denied') {
+          Alert.alert('לא ניתן לאשר', 'הבקשה כבר לא פעילה — ייתכן שפג תוקפה או שבעל החניה ביטל.');
+        } else {
+          Alert.alert('שגיאה', 'לא ניתן לאשר, נסה שוב');
+        }
       }
     } finally {
       setLoading(false);
@@ -286,8 +294,12 @@ function CancelApprovalRow({ requestId }: { requestId: string }) {
         onPress: async () => {
           try {
             await cancelApproval(requestId);
-          } catch {
-            Alert.alert('שגיאה', 'לא ניתן לבטל');
+          } catch (e: any) {
+            if (e instanceof TimeoutError) {
+              Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+            } else {
+              Alert.alert('שגיאה', 'לא ניתן לבטל');
+            }
           }
         },
       },
@@ -426,7 +438,11 @@ function ActiveSessionModal({
                         onClose();
                       } catch (e: any) {
                         console.error('completeParking error:', e);
-                        Alert.alert('שגיאה', e?.message ?? 'לא ניתן לסגור את הבקשה');
+                        if (e instanceof TimeoutError) {
+                          Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+                        } else {
+                          Alert.alert('שגיאה', 'לא ניתן לסגור את הבקשה');
+                        }
                       }
                     },
                   },
@@ -744,6 +760,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <View style={s.screen}>
+      <OfflineBanner />
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity

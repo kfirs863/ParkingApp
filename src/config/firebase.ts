@@ -19,6 +19,7 @@ import {
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { withTimeout } from '../utils/withTimeout';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Native Firebase SDK — handles reCAPTCHA/app verification silently on device
@@ -88,7 +89,7 @@ export async function verifyOTP(code: string): Promise<void> {
   if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
   const idToken = await (currentUser as any).getIdToken(true);
   const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data } = await mintToken({ idToken });
+  const { data } = await withTimeout(mintToken({ idToken }), 20000);
   await _signInWithCustomToken(auth, data.customToken);
 }
 

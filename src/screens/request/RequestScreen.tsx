@@ -8,6 +8,7 @@ import { MainTabParamList } from '../../navigation/MainNavigator';
 import { Button, Input, DateTimePicker } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
 import { createRequest, durationLabel } from '../../hooks/useParking';
+import { TimeoutError } from '../../utils/withTimeout';
 import { useUserProfile } from '../../config/firebase';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Request'> };
@@ -93,7 +94,9 @@ export default function RequestScreen({ navigation }: Props) {
         [{ text: 'הבנתי', onPress: () => navigation.navigate('Home') }]
       );
     } catch (e: any) {
-      if (e?.message === 'DUPLICATE_REQUEST') {
+      if (e instanceof TimeoutError) {
+        Alert.alert('בעיית תקשורת', 'הבקשה לא נשלחה — בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else if (e?.message === 'DUPLICATE_REQUEST') {
         Alert.alert(
           'יש לך בקשה פעילה',
           'כבר שלחת בקשת חניה פתוחה. בטל אותה לפני שתשלח בקשה חדשה.',
