@@ -1,55 +1,86 @@
 name: Deploy to Firebase
 
-# האוטומציה תרוץ בכל פעם שקוד חדש נדחף ל-branch הראשי
+# Runs on every push to master, or manually via the Actions tab.
+# Each job watches its own paths and skips itself when nothing relevant changed.
 on:
-  workflow_dispatch: # מאפשר הפעלה ידנית מהאתר של GitHub
+  workflow_dispatch:
   push:
     branches:
       - master
-    # היא תרוץ רק אם חל שינוי בקבצים הרלוונטיים ל-Backend
-    paths:
-      - 'functions/**'
-      - 'firestore.rules'
-      - 'firestore.indexes.json'
-      - '.github/workflows/firebase-deploy.yml'
 
 jobs:
+  # ── Backend: Cloud Functions + Firestore rules/indexes ──────────────────────
   deploy_backend:
-    name: Build and Deploy
+    name: Deploy Backend (Functions + Firestore)
     runs-on: ubuntu-latest
+    # Only run when backend files change (or triggered manually)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits), 'functions/') ||
+      contains(toJSON(github.event.commits), 'firestore.rules') ||
+      contains(toJSON(github.event.commits), 'firestore.indexes.json')
 
     steps:
-      # 1. משיכת הקוד מהמאגר
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. הגדרת Node.js בגרסה 20 (הגרסה המומלצת ל-Firebase Functions)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      # 3. התקנת תלויות (Dependencies) - שימוש ב-npm install שמתמודד טוב יותר עם חוסר בקבצי lock
-      - name: Install Dependencies
-        run: |
-          npm install --legacy-peer-deps
-          if [ -d "functions" ]; then
-            cd functions && npm install
-          fi
+      - name: Install Root Dependencies
+        run: npm install --legacy-peer-deps
 
-      # 4. בניית ה-Functions (ממיר TypeScript ל-JavaScript)
+      - name: Install Functions Dependencies
+        run: cd functions && npm install
+
       - name: Build Functions
-        run: |
-          if [ -d "functions" ]; then
-            cd functions && npm run build
-          fi
+        run: cd functions && npm run build
 
-      # 5. פריסה ל-Firebase באמצעות מפתח Service Account (הוספנו --force כפי שגוגל דרשו)
-      - name: Deploy to Firebase
+      - name: Deploy Backend to Firebase
         uses: w9jds/firebase-action@master
         with:
           args: deploy --only functions,firestore:rules,firestore:indexes --force
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PROJECT_ID: parkingapp-1fb82
+
+  # ── Web: Expo PWA build → Firebase Hosting ──────────────────────────────────
+  deploy_web:
+    name: Build and Deploy Web PWA
+    runs-on: ubuntu-latest
+    # Only run when frontend files change (or triggered manually)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits), 'src/') ||
+      contains(toJSON(github.event.commits), 'App.tsx') ||
+      contains(toJSON(github.event.commits), 'app.config.js') ||
+      contains(toJSON(github.event.commits), 'public/') ||
+      contains(toJSON(github.event.commits), 'web/')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web Bundle (Expo export)
+        run: npx expo export --platform web
+        # Expo exports to dist/ by default
+
+      - name: Deploy Web to Firebase Hosting
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only hosting
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: parkingapp-1fb82
