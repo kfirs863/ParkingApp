@@ -7,6 +7,9 @@ import {
   onAuthStateChanged as _onAuthStateChanged,
   User,
   Persistence,
+  RecaptchaVerifier,
+  signInWithPhoneNumber as webSignInWithPhoneNumber,
+  ConfirmationResult,
 } from 'firebase/auth';
 // getReactNativePersistence is only in the RN build — metro.config.js resolves
 // firebase/auth to the RN build at runtime via the react-native export condition.
@@ -21,14 +24,8 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { withTimeout } from '../utils/withTimeout';
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Native Firebase SDK — handles reCAPTCHA/app verification silently on device
-import {
-  getAuth as getRNAuth,
-  signInWithPhoneNumber as rnSignInWithPhoneNumber,
-  signOut as rnSignOut,
-  getIdToken as rnGetIdToken,
-} from '@react-native-firebase/auth';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -43,10 +40,16 @@ export const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 let auth: ReturnType<typeof getAuth>;
-try {
-  auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
-} catch {
+if (Platform.OS === 'web') {
+  // On web, firebase/auth resolves to the browser build which uses
+  // localStorage persistence by default — no AsyncStorage needed.
   auth = getAuth(app);
+} else {
+  try {
+    auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+  } catch {
+    auth = getAuth(app);
+  }
 }
 
 export { auth, app };
@@ -55,49 +58,80 @@ const fns = getFunctions(app, 'europe-west1');
 
 // ─── Auth helpers ──────────────────────────────────────────
 export async function signOut() {
-  const errors: Error[] = [];
-  try { await rnSignOut(getRNAuth()); } catch (e: any) { errors.push(e); }
-  try { await _signOut(auth); } catch (e: any) { errors.push(e); }
-  if (errors.length > 0) {
-    console.error('Sign out errors:', errors);
-    // Still proceed — partial sign out is better than stuck state
+  if (Platform.OS !== 'web') {
+    // Also sign out of the native Firebase SDK session
+    try {
+      const { getAuth: getRNAuth, signOut: rnSignOut } = require('@react-native-firebase/auth');
+      await rnSignOut(getRNAuth());
+    } catch (e) {
+      console.warn('Native sign-out error (non-fatal):', e);
+    }
   }
+  await _signOut(auth);
 }
 
 export function onAuthStateChanged(callback: (user: User | null) => void) {
   return _onAuthStateChanged(auth, callback);
 }
 
-// ─── OTP (via @react-native-firebase/auth — handles reCAPTCHA natively) ───
+// ─── OTP — Web (firebase/auth web SDK + RecaptchaVerifier) ───
+// On web there is only one SDK session, so no custom-token sync is needed.
+let _webRecaptchaVerifier: RecaptchaVerifier | null = null;
+let _webConfirmationResult: ConfirmationResult | null = null;
+
+// ─── OTP — Native (@react-native-firebase/auth) ──────────────
 // ConfirmationResult is held in memory — it wraps a native session that
 // cannot be serialised to AsyncStorage.
-let _confirmationResult: Awaited<ReturnType<typeof rnSignInWithPhoneNumber>> | null = null;
+let _nativeConfirmationResult: any = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
-  _confirmationResult = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
+  if (Platform.OS === 'web') {
+    // Lazily create the RecaptchaVerifier pointing at the mount div in App.tsx.
+    // Re-use the existing verifier across calls to avoid duplicate widgets.
+    if (!_webRecaptchaVerifier) {
+      _webRecaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+      });
+    }
+    _webConfirmationResult = await webSignInWithPhoneNumber(
+      auth,
+      phoneNumber,
+      _webRecaptchaVerifier,
+    );
+  } else {
+    // Native: use @react-native-firebase/auth which handles reCAPTCHA silently
+    const { getAuth: getRNAuth, signInWithPhoneNumber: rnSignInWithPhoneNumber } =
+      require('@react-native-firebase/auth');
+    _nativeConfirmationResult = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
+  }
 }
 
 export async function verifyOTP(code: string): Promise<void> {
-  if (!_confirmationResult) throw new Error('No verification in progress — resend the code');
+  if (Platform.OS === 'web') {
+    if (!_webConfirmationResult) throw new Error('No verification in progress — resend the code');
+    const result = _webConfirmationResult;
+    // confirm() signs the user into the web SDK directly — no custom token sync needed
+    await result.confirm(code);
+    _webConfirmationResult = null;
+  } else {
+    if (!_nativeConfirmationResult) throw new Error('No verification in progress — resend the code');
+    const result = _nativeConfirmationResult;
 
-  // Capture locally so a concurrent sendOTP call can't clobber it mid-flight
-  const result = _confirmationResult;
+    // 1. Confirm OTP via native SDK — uses the native session held in result
+    await result.confirm(code);
 
-  // 1. Confirm OTP via native SDK — uses the native session held in result
-  await result.confirm(code);
+    // 2. Exchange the native user's ID token for a custom token so the JS SDK
+    //    auth (used by Firestore security rules) shares the same session.
+    const { getAuth: getRNAuth, getIdToken: rnGetIdToken } = require('@react-native-firebase/auth');
+    const currentUser = getRNAuth().currentUser;
+    if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
+    const idToken = await rnGetIdToken(currentUser, true);
+    const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
+    const { data } = await withTimeout(mintToken({ idToken }), 20000);
+    await _signInWithCustomToken(auth, data.customToken);
 
-  // 2. Exchange the native user's ID token for a custom token so the JS SDK
-  //    auth (used by Firestore security rules) shares the same session.
-  const currentUser = getRNAuth().currentUser;
-  if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
-  const idToken = await rnGetIdToken(currentUser, true);
-  const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data } = await withTimeout(mintToken({ idToken }), 20000);
-  await _signInWithCustomToken(auth, data.customToken);
-
-  // Only clear after the entire flow succeeds — keeps result alive for retries
-  // if mintCustomToken throws (network error, cold-start timeout, etc.)
-  _confirmationResult = null;
+    _nativeConfirmationResult = null;
+  }
 }
 
 // ─── User Profile ─────────────────────────────────────────

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+    />
+
+    <!-- Theme / brand colours -->
+    <meta name="theme-color" content="#F5A623" />
+    <meta name="msapplication-TileColor" content="#0A0A0F" />
+
+    <!-- PWA Manifest (required for Add to Home Screen on Android & iOS) -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- iOS PWA support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Parking" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+
+    <title>Upper House Parking</title>
+
+    <!-- Paint the background before React hydrates to prevent flash of white -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #0a0a0f;
+        direction: rtl;
+      }
+      /* Hide scrollbar globally — the app manages its own scroll containers */
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      * {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

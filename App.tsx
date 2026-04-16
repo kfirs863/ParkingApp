@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -53,6 +53,11 @@ export default function App() {
           <StatusBar style="light" backgroundColor={colors.bg} />
           {appState === 'onboarding' ? <OnboardingNavigator /> : <MainNavigator />}
         </NavigationContainer>
+        {/* Invisible reCAPTCHA mount point for web phone auth (firebase/auth RecaptchaVerifier) */}
+        {Platform.OS === 'web' && (
+          // @ts-ignore — <div> is valid in react-native-web's web rendering context
+          <div id="recaptcha-container" style={{ position: 'absolute', bottom: 0 }} />
+        )}
       </ErrorBoundary>
     </SafeAreaProvider>
   );
