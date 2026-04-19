@@ -29,6 +29,7 @@
     "expo-device": "~8.0.10",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.16",
+    "expo-router": "file:./shims/expo-router-stub",
     "expo-status-bar": "~3.0.9",
     "firebase": "^9.23.0",
     "react": "19.1.0",
