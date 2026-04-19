@@ -44,7 +44,7 @@ module.exports = {
     ],
     web: {
       favicon: './assets/icon.png',
-      bundler: 'webpack',
+      bundler: 'metro',
       name: 'Upper House Parking',
       shortName: 'Parking',
       description: 'ניהול חניות משותף לשכנים',
