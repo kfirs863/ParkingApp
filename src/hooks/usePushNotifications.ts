@@ -10,7 +10,7 @@ import { withTimeout } from '../utils/withTimeout';
 // Project Settings → Cloud Messaging → Web Push certificates → Key pair
 // This key is NOT a secret; it is embedded in client code by design.
 const VAPID_KEY =
-  'YOUR_VAPID_PUBLIC_KEY_HERE'; // TODO: replace with actual key from Firebase Console
+  'BHzw0TDhsHX5Jhm53_5tbbgkjGh3tXhGl_xnGHCQyeuefS0FcbngV2YWgyg83Bbb6uWM3w387OkvCP43ISa_asM'; // TODO: replace with actual key from Firebase Console
 
 // Configure foreground notification behaviour on native only.
 // expo-notifications is shimmed to a no-op on web (see metro.config.js).
