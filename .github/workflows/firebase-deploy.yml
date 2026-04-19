@@ -1,7 +1,6 @@
 name: Deploy to Firebase
 
 # Runs on every push to master, or manually via the Actions tab.
-# Each job watches its own paths and skips itself when nothing relevant changed.
 on:
   workflow_dispatch:
   push:
@@ -9,16 +8,37 @@ on:
       - master
 
 jobs:
+  # ── Detect which parts of the codebase changed ──────────────────────────────
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'functions/**'
+              - 'firestore.rules'
+              - 'firestore.indexes.json'
+            frontend:
+              - 'src/**'
+              - 'App.tsx'
+              - 'app.config.js'
+              - 'public/**'
+              - 'web/**'
+              - 'package.json'
+
   # ── Backend: Cloud Functions + Firestore rules/indexes ──────────────────────
   deploy_backend:
     name: Deploy Backend (Functions + Firestore)
     runs-on: ubuntu-latest
-    # Only run when backend files change (or triggered manually)
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(toJSON(github.event.commits), 'functions/') ||
-      contains(toJSON(github.event.commits), 'firestore.rules') ||
-      contains(toJSON(github.event.commits), 'firestore.indexes.json')
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout Repository
@@ -51,14 +71,8 @@ jobs:
   deploy_web:
     name: Build and Deploy Web PWA
     runs-on: ubuntu-latest
-    # Only run when frontend files change (or triggered manually)
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(toJSON(github.event.commits), 'src/') ||
-      contains(toJSON(github.event.commits), 'App.tsx') ||
-      contains(toJSON(github.event.commits), 'app.config.js') ||
-      contains(toJSON(github.event.commits), 'public/') ||
-      contains(toJSON(github.event.commits), 'web/')
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout Repository
@@ -75,7 +89,6 @@ jobs:
 
       - name: Build Web Bundle (Expo export)
         run: npx expo export --platform web
-        # Expo exports to dist/ by default
 
       - name: Deploy Web to Firebase Hosting
         uses: w9jds/firebase-action@master
