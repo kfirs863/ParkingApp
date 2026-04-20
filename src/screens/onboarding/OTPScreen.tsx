@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, Alert,
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -28,6 +28,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(30);
+  const [error, setError] = useState('');
   const inputRef = useRef<TextInput | null>(null);
 
   // Countdown for resend
@@ -45,6 +46,7 @@ export default function OTPScreen({ navigation, route }: Props) {
   const isComplete = code.length === CODE_LENGTH;
 
   const handleVerify = async () => {
+    setError('');
     setLoading(true);
     try {
       await verifyOTP(code);
@@ -52,12 +54,9 @@ export default function OTPScreen({ navigation, route }: Props) {
     } catch (e: any) {
       console.error('verifyOTP error:', e?.code, e?.message, e);
       if (e?.message?.includes('No verification in progress')) {
-        Alert.alert(
-          'תם תוקף האימות',
-          'האימות פג תוקף — ייתכן שהאפליקציה נסגרה. לחץ "שלח קוד חדש" ונסה שנית.',
-        );
+        setError('האימות פג תוקף — לחץ "שלח קוד חדש" ונסה שנית');
       } else {
-        Alert.alert('קוד שגוי', 'הקוד שהזנת אינו תקין, נסה שוב');
+        setError('הקוד שהזנת אינו תקין, נסה שוב');
       }
       setCode('');
       inputRef.current?.focus();
@@ -117,6 +116,8 @@ export default function OTPScreen({ navigation, route }: Props) {
         textContentType="oneTimeCode"
       />
 
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
+
       {/* Resend */}
       <TouchableOpacity
         disabled={countdown > 0 || sending}
@@ -126,8 +127,9 @@ export default function OTPScreen({ navigation, route }: Props) {
           try {
             await sendOTP(phone);
             setCountdown(30);
-          } catch {
-            Alert.alert('שגיאה', 'לא ניתן לשלוח קוד חדש, נסה שוב');
+            setError('');
+          } catch (e: any) {
+            setError(e?.message || 'לא ניתן לשלוח קוד חדש, נסה שוב');
           } finally {
             setSending(false);
           }
@@ -193,6 +195,12 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
 
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
   resendWrap: { alignItems: 'center', marginBottom: spacing.xl },
   resend: { ...typography.body, color: colors.accent },
   resendDisabled: { color: colors.textMuted },

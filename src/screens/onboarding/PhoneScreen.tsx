@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { sendOTP } from '../../config/firebase';
 import { colors } from '../../theme';
@@ -16,6 +15,7 @@ import { colors } from '../../theme';
 export default function PhoneScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const toInternational = (local: string): string => {
     const digits = local.replace(/\D/g, '');
@@ -28,17 +28,25 @@ export default function PhoneScreen({ navigation }: any) {
 
   const handleSendCode = async () => {
     if (!isValidPhone) {
-      Alert.alert('שגיאה', 'הכנס מספר טלפון ישראלי תקין (05XXXXXXXX)');
+      setError('הכנס מספר טלפון ישראלי תקין (05XXXXXXXX)');
       return;
     }
+    setError('');
     setLoading(true);
     try {
       const fullPhone = toInternational(phoneNumber);
       await sendOTP(fullPhone);
       navigation.navigate('OTP', { phone: fullPhone });
-    } catch (error: any) {
-      console.error('Send OTP error:', error);
-      Alert.alert('שגיאה', error?.message || 'לא ניתן לשלוח קוד, נסה שוב');
+    } catch (err: any) {
+      console.error('Send OTP error:', err);
+      const msg: string = err?.message ?? '';
+      if (msg.includes('unauthorized-domain') || msg.includes('auth/unauthorized-domain')) {
+        setError('הדומיין לא מורשה — יש להוסיף אותו ב-Firebase Auth Authorized Domains');
+      } else if (msg.includes('too-many-requests')) {
+        setError('יותר מדי ניסיונות, נסה שוב מאוחר יותר');
+      } else {
+        setError(msg || 'לא ניתן לשלוח קוד, נסה שוב');
+      }
     } finally {
       setLoading(false);
     }
@@ -62,6 +70,8 @@ export default function PhoneScreen({ navigation }: any) {
           onChangeText={setPhoneNumber}
           maxLength={10}
         />
+
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         <TouchableOpacity
           style={[styles.button, !isValidPhone && styles.buttonDisabled]}
@@ -123,6 +133,12 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   buttonText: {
     fontSize: 18,
