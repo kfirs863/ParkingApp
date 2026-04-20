@@ -1,5 +1,7 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Platform } from 'react-native';
+// createStackNavigator (JS-based) works on web; createNativeStackNavigator does not.
+import { createStackNavigator } from '@react-navigation/stack';
 
 import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
 import PhoneScreen from '../screens/onboarding/PhoneScreen';
@@ -17,11 +19,18 @@ export type OnboardingStackParamList = {
   Done: undefined;
 };
 
-const Stack = createNativeStackNavigator<OnboardingStackParamList>();
+const Stack = createStackNavigator<OnboardingStackParamList>();
 
 export default function OnboardingNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        // slide_from_right is a native-stack-only option; omit on web
+        ...(Platform.OS !== 'web' ? { animation: 'slide_from_right' } : {}),
+        cardStyle: { backgroundColor: 'transparent' },
+      }}
+    >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Phone" component={PhoneScreen} />
       <Stack.Screen name="OTP" component={OTPScreen} />

@@ -42,6 +42,18 @@ module.exports = {
         },
       ],
     ],
+    web: {
+      favicon: './assets/icon.png',
+      bundler: 'metro',
+      output: 'single',
+      name: 'Upper House Parking',
+      shortName: 'Parking',
+      description: 'ניהול חניות משותף לשכנים',
+      themeColor: '#F5A623',
+      backgroundColor: '#0A0A0F',
+      display: 'standalone',
+      orientation: 'portrait',
+    },
     extra: {
       eas: {
         projectId: "3aea0a64-fdc2-4772-bd79-385a6052debf",
