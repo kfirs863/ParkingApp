@@ -20,15 +20,9 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Need HEAD~1 available for paths-filter on workflow_dispatch
-          fetch-depth: 2
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # On workflow_dispatch there is no 'before' SHA; compare against
-          # the previous commit so the filter works without warnings.
-          base: ${{ github.event_name == 'workflow_dispatch' && 'HEAD~1' || github.event.before }}
           filters: |
             backend:
               - 'functions/**'
