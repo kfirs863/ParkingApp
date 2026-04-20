@@ -3,15 +3,10 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Tell Metro to use the react-native export condition so @firebase/auth
-// resolves to its RN build (dist/rn/index.js) instead of the browser build.
-// The browser build runs registerAuth() at module evaluation time which
-// crashes in Expo Go before the native bridge is ready.
-config.resolver.unstable_conditionNames = [
-  'react-native',
-  'require',
-  'default',
-];
+// We previously had unstable_conditionNames = ['react-native'] here, but that
+// forces the React Native build of Firebase even on Web, which breaks 
+// reCAPTCHA / Phone Auth (error: appVerificationDisabledForTesting).
+// Expo 51+ handles platform-specific conditions automatically.
 
 // Redirect native-only and SSR-only modules to web shims.
 // expo-notifications requires native bridge APIs absent in the browser.
