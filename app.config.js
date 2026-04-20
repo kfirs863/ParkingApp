@@ -43,7 +43,7 @@ module.exports = {
       ],
     ],
     web: {
-      favicon: './assets/icon.png',
+      favicon: './assets/favicon-32x32.png',
       bundler: 'metro',
       output: 'single',
       name: 'Upper House Parking',

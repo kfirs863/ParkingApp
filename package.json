@@ -14,7 +14,8 @@
     "deploy:web": "npm run build:web && firebase deploy --only hosting",
     "deploy:all": "npm run deploy:rules && npm run deploy:functions",
     "emulator": "firebase emulators:start",
-    "postinstall": "node scripts/install-expo-router-stub.js"
+    "postinstall": "node scripts/install-expo-router-stub.js",
+    "generate-icons": "node scripts/generate-icons.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -47,6 +48,7 @@
     "@expo/webpack-config": "^19.0.1",
     "@types/react": "~19.1.10",
     "firebase-tools": "^15.12.0",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   },
   "private": true
