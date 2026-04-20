@@ -45,9 +45,11 @@ let _webConfirmationResult: ConfirmationResult | null = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
   if (!_webRecaptchaVerifier) {
-    _webRecaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    // FIX: Correct argument order for Firebase Web SDK v9+
+    // constructor(containerOrId, parameters, auth)
+    _webRecaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
       size: 'invisible',
-    });
+    }, auth);
   }
   _webConfirmationResult = await webSignInWithPhoneNumber(
     auth,
