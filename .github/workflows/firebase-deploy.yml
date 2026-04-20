@@ -28,9 +28,12 @@ jobs:
               - 'src/**'
               - 'App.tsx'
               - 'app.config.js'
+              - 'metro.config.js'
               - 'public/**'
               - 'web/**'
               - 'package.json'
+              - 'shims/**'
+              - 'scripts/**'
 
   # ── Backend: Cloud Functions + Firestore rules/indexes ──────────────────────
   deploy_backend:
