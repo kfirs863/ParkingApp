@@ -1,11 +1,12 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
-  initializeAuth,
-  signInWithCustomToken as _signInWithCustomToken,
   signOut as _signOut,
   onAuthStateChanged as _onAuthStateChanged,
   User,
+  RecaptchaVerifier,
+  signInWithPhoneNumber as webSignInWithPhoneNumber,
+  ConfirmationResult,
 } from 'firebase/auth';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs,
@@ -14,10 +15,6 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { withTimeout } from '../utils/withTimeout';
 import { useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// @ts-ignore
-const { getReactNativePersistence } = require('firebase/auth');
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBZYrynD87K3S7zDW5ctYAMnUX8P3FSyJ0",
@@ -30,26 +27,12 @@ export const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-let auth: ReturnType<typeof getAuth>;
-try {
-  auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
-} catch {
-  auth = getAuth(app);
-}
-
-export { auth, app };
+export const auth = getAuth(app);
+export { app };
 export const db = getFirestore(app);
 const fns = getFunctions(app, 'europe-west1');
 
-// ─── Auth helpers ──────────────────────────────────────────
 export async function signOut() {
-  try {
-    const { getAuth: getRNAuth, signOut: rnSignOut } = require('@react-native-firebase/auth');
-    await rnSignOut(getRNAuth());
-  } catch (e) {
-    console.warn('Native sign-out error (non-fatal):', e);
-  }
   await _signOut(auth);
 }
 
@@ -57,32 +40,28 @@ export function onAuthStateChanged(callback: (user: User | null) => void) {
   return _onAuthStateChanged(auth, callback);
 }
 
-let _nativeConfirmationResult: any = null;
+let _webRecaptchaVerifier: RecaptchaVerifier | null = null;
+let _webConfirmationResult: ConfirmationResult | null = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
-  const { getAuth: getRNAuth, signInWithPhoneNumber: rnSignInWithPhoneNumber } =
-    require('@react-native-firebase/auth');
-  _nativeConfirmationResult = await rnSignInWithPhoneNumber(getRNAuth(), phoneNumber);
+  if (!_webRecaptchaVerifier) {
+    _webRecaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+    });
+  }
+  _webConfirmationResult = await webSignInWithPhoneNumber(
+    auth,
+    phoneNumber,
+    _webRecaptchaVerifier,
+  );
 }
 
 export async function verifyOTP(code: string): Promise<void> {
-  if (!_nativeConfirmationResult) throw new Error('No verification in progress — resend the code');
-  const result = _nativeConfirmationResult;
-
-  await result.confirm(code);
-
-  const { getAuth: getRNAuth, getIdToken: rnGetIdToken } = require('@react-native-firebase/auth');
-  const currentUser = getRNAuth().currentUser;
-  if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
-  const idToken = await rnGetIdToken(currentUser, true);
-  const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data } = await withTimeout(mintToken({ idToken }), 20000);
-  await _signInWithCustomToken(auth, data.customToken);
-
-  _nativeConfirmationResult = null;
+  if (!_webConfirmationResult) throw new Error('No verification in progress — resend the code');
+  await _webConfirmationResult.confirm(code);
+  _webConfirmationResult = null;
 }
 
-// ─── User Profile ─────────────────────────────────────────
 export interface UserProfile {
   name: string;
   tower: string;
