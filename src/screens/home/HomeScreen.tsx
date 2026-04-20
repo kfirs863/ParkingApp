@@ -322,11 +322,15 @@ const car = StyleSheet.create({
 
 // ─── Contact helpers ──────────────────────────────────────
 function callPhone(phone: string) {
-  Linking.openURL(`tel:${phone}`);
+  Linking.openURL(`tel:${phone}`).catch(() =>
+    showAlert('שגיאה', 'לא ניתן לבצע שיחה ממכשיר זה')
+  );
 }
 function openWhatsApp(phone: string) {
   const clean = phone.replace(/^\+/, '');
-  Linking.openURL(`https://wa.me/${clean}`);
+  Linking.openURL(`https://wa.me/${clean}`).catch(() =>
+    showAlert('שגיאה', 'לא ניתן לפתוח את WhatsApp')
+  );
 }
 
 function ContactButtons({ phone, style }: { phone: string; style?: object }) {
@@ -407,7 +411,9 @@ function ActiveSessionModal({
             activeOpacity={0.85}
             onPress={() => {
               const msg = `שלום ${otherName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
-              Linking.openURL(`https://wa.me/${otherPhone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`);
+              Linking.openURL(`https://wa.me/${otherPhone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`).catch(() =>
+                showAlert('שגיאה', 'לא ניתן לפתוח את WhatsApp')
+              );
             }}
           >
             <Text style={as.urgentBtnText}>🚨 בקש לפנות את החניה בדחיפות</Text>
@@ -528,7 +534,9 @@ function GaveModal({ request, visible, onClose }: {
             activeOpacity={0.85}
             onPress={() => {
               const msg = `שלום ${request.requesterName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
-              Linking.openURL(`https://wa.me/${phone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`);
+              Linking.openURL(`https://wa.me/${phone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`).catch(() =>
+                showAlert('שגיאה', 'לא ניתן לפתוח את WhatsApp')
+              );
             }}
           >
             <Text style={as.urgentBtnText}>🚨 בקש לפנות את החניה בדחיפות</Text>

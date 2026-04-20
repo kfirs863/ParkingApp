@@ -12,7 +12,7 @@ export function OfflineBanner() {
     const check = async () => {
       try {
         const state = await Network.getNetworkStateAsync();
-        if (mounted) setIsOffline(!state.isConnected || !state.isInternetReachable);
+        if (mounted) setIsOffline(!state.isConnected || state.isInternetReachable === false);
       } catch {
         // Can't determine — assume online
       }
