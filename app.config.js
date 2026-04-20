@@ -4,11 +4,11 @@ module.exports = {
     slug: "parking-app",
     version: "1.0.2",
     orientation: "portrait",
-    icon: "./assets/icon-1024x1024.png",
+    icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
     sdkVersion: "54.0.0",
     splash: {
-      image: "./public/splash.png",
+      image: "./assets/splash.png",
       resizeMode: "contain",
       backgroundColor: "#0A0A0F",
     },
