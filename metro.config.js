@@ -19,6 +19,19 @@ config.resolver.unstable_conditionNames = [
 // during 'expo export --platform web' even for non-expo-router apps.
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // On web, redirect @firebase/auth to the browser CJS build so that
+  // RecaptchaVerifier and other browser-only APIs are available.
+  // The global unstable_conditionNames picks the react-native build (needed
+  // for native), but that build omits RecaptchaVerifier entirely.
+  if (platform === 'web' && moduleName === '@firebase/auth') {
+    return {
+      filePath: path.resolve(
+        __dirname,
+        'node_modules/@firebase/auth/dist/browser-cjs/index.js',
+      ),
+      type: 'sourceFile',
+    };
+  }
   if (platform === 'web' && moduleName === 'expo-notifications') {
     return {
       filePath: path.resolve(__dirname, 'src/shims/expo-notifications-web.ts'),
