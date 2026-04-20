@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, Switch, Modal,
+  ActivityIndicator, Switch, Modal,
 } from 'react-native';
 
 import { FLOORS, ParkingFloor, buildSpotId, parseSpotId } from '../../utils/spotId';
@@ -15,6 +15,7 @@ import {
   deleteAvailabilityRule, AvailabilityRule,
 } from '../../hooks/useAvailabilityRules';
 import { durationLabel } from '../../hooks/useParking';
+import { showAlert, showConfirm } from '../../utils/alert';
 
 export default function ProfileScreen() {
   const { profile, loading } = useUserProfile();
@@ -38,7 +39,6 @@ export default function ProfileScreen() {
   const mounted = useRef(true);
   useEffect(() => { return () => { mounted.current = false; }; }, []);
 
-  // ── Populate fields from profile ───────────────────────
   useEffect(() => {
     if (!profile) return;
     setName(profile.name ?? '');
@@ -52,14 +52,12 @@ export default function ProfileScreen() {
     setSpotCheck(profile.ownedSpot ? 'mine' : 'idle');
   }, [profile]);
 
-  // ── Spot uniqueness check (debounced) ──────────────────
   const triggerSpotCheck = (floor: ParkingFloor | null, number: string) => {
     if (debounce.current) clearTimeout(debounce.current);
     if (!floor || !number.trim()) { setSpotCheck('idle'); return; }
 
     const spotId = buildSpotId(floor, number);
 
-    // Same as currently saved spot → no need to check
     if (spotId === profile?.ownedSpot) {
       setSpotCheck('mine');
       return;
@@ -95,7 +93,6 @@ export default function ProfileScreen() {
     triggerSpotCheck(spotFloor, text);
   };
 
-  // ── Validation ─────────────────────────────────────────
   const plateNorm = carNumber.replace(/-/g, '');
   const carValid  = !carNumber.trim() || /^\d{7,8}$/.test(plateNorm);
   const spotReady =
@@ -104,7 +101,6 @@ export default function ProfileScreen() {
       (spotCheck === 'available' || spotCheck === 'mine'));
   const canSave = dirty && name.trim().length > 1 && tower && apartment.trim() && carValid && spotReady && spotCheck !== 'checking';
 
-  // ── Save ───────────────────────────────────────────────
   const handleSave = async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -120,20 +116,23 @@ export default function ProfileScreen() {
       };
       await updateDoc(doc(db, 'users', uid), updated);
       setDirty(false);
-      Alert.alert('✅ נשמר', 'הפרופיל עודכן בהצלחה');
+      showAlert('✅ נשמר', 'הפרופיל עודכן בהצלחה');
     } catch {
-      Alert.alert('שגיאה', 'לא ניתן לשמור, נסה שוב');
+      showAlert('שגיאה', 'לא ניתן לשמור, נסה שוב');
     } finally {
       setSaving(false);
     }
   };
 
-  // ── Sign out ───────────────────────────────────────────
   const handleSignOut = () => {
-    Alert.alert('יציאה', 'האם לצאת מהאפליקציה?', [
-      { text: 'ביטול', style: 'cancel' },
-      { text: 'כן, צא', style: 'destructive', onPress: () => signOut() },
-    ]);
+    showConfirm(
+      'יציאה',
+      'האם לצאת מהאפליקציה?',
+      () => signOut(),
+      'כן, צא',
+      'ביטול',
+      true
+    );
   };
 
   if (loading) {
@@ -146,7 +145,6 @@ export default function ProfileScreen() {
 
   return (
     <View style={s.screen}>
-      {/* Header */}
       <View style={s.header}>
         <View style={s.avatar}>
           <Text style={s.avatarText}>{(name || '?').charAt(0).toUpperCase()}</Text>
@@ -174,7 +172,6 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Personal details ── */}
         <SectionTitle>פרטים אישיים</SectionTitle>
 
         <Input
@@ -209,7 +206,6 @@ export default function ProfileScreen() {
           textAlign="right"
         />
 
-        {/* ── Vehicle ── */}
         <SectionTitle>רכב</SectionTitle>
 
         <Input
@@ -223,7 +219,6 @@ export default function ProfileScreen() {
           error={carNumber && !carValid ? 'מספר תקין: 7-8 ספרות' : ''}
         />
 
-        {/* ── Parking spot ── */}
         <SectionTitle>חניה צמודה</SectionTitle>
 
         <View style={s.toggleRow}>
@@ -276,12 +271,10 @@ export default function ProfileScreen() {
           </>
         )}
 
-        {/* ── Recurring availability ── */}
         {hasSpot === true && profile?.ownedSpot && (
           <AvailabilitySection profile={profile} />
         )}
 
-        {/* ── Push preferences ── */}
         <SectionTitle>התראות</SectionTitle>
         <View style={s.prefRow}>
           <View style={s.prefInfo}>
@@ -300,7 +293,6 @@ export default function ProfileScreen() {
           />
         </View>
 
-        {/* ── Phone (read-only, from auth) ── */}
         <SectionTitle>טלפון</SectionTitle>
         <View style={s.readOnlyRow}>
           <Text style={s.readOnlyLabel}>מספר מאומת</Text>
@@ -313,7 +305,6 @@ export default function ProfileScreen() {
         <View style={{ height: spacing.xl }} />
       </ScrollView>
 
-      {/* Save bar */}
       {dirty && (
         <View style={s.saveBar}>
           <Button
@@ -328,8 +319,6 @@ export default function ProfileScreen() {
   );
 }
 
-// ── Availability helpers ───────────────────────────────────
-
 const DAY_LABELS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
 function hhmmToDate(hhmm: string): Date {
@@ -342,7 +331,6 @@ function hhmmToDate(hhmm: string): Date {
 function addMinutes(hhmm: string, delta: number): string {
   const [h, m] = hhmm.split(':').map(Number);
   let total = h * 60 + m + delta;
-  // clamp to 00:00–23:30
   total = Math.max(0, Math.min(23 * 60 + 30, total));
   const hh = String(Math.floor(total / 60)).padStart(2, '0');
   const mm = String(total % 60).padStart(2, '0');
@@ -355,8 +343,6 @@ function isValidTimeRange(from: string, to: string): boolean {
   return fh * 60 + fm < th * 60 + tm;
 }
 
-// ── Availability Section ───────────────────────────────────
-
 function AvailabilitySection({ profile }: { profile: UserProfile }) {
   const { rules, loading } = useMyAvailabilityRules();
   const [modalVisible, setModalVisible] = useState(false);
@@ -366,17 +352,13 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
   const openEdit = (rule: AvailabilityRule) => { setEditingRule(rule); setModalVisible(true); };
 
   const handleDelete = (rule: AvailabilityRule) => {
-    Alert.alert(
+    showConfirm(
       'מחיקת כלל',
       `למחוק את הכלל ${rule.fromHHMM}–${rule.toHHMM}?`,
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: () => deleteAvailabilityRule(rule.id),
-        },
-      ],
+      () => deleteAvailabilityRule(rule.id),
+      'מחק',
+      'ביטול',
+      true
     );
   };
 
@@ -384,7 +366,6 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
     <>
       <SectionTitle>זמינות חוזרת</SectionTitle>
 
-      {/* Explanation banner */}
       <View style={av.explanationCard}>
         <View style={av.explanationIconRow}>
           <Text style={av.explanationIcon}>🔔</Text>
@@ -399,7 +380,6 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginVertical: spacing.md }} />
       ) : rules.length === 0 ? (
-        /* Empty state */
         <View style={av.emptyState}>
           <Text style={av.emptyEmoji}>📅</Text>
           <Text style={av.emptyTitle}>לא הגדרת זמינות</Text>
@@ -434,8 +414,6 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
   );
 }
 
-// ── Rule Card ──────────────────────────────────────────────
-
 function RuleCard({
   rule, onEdit, onDelete,
 }: {
@@ -445,7 +423,6 @@ function RuleCard({
 }) {
   return (
     <View style={av.ruleCard}>
-      {/* Top row: time range + status badge */}
       <View style={av.ruleTopRow}>
         <View style={[av.statusBadge, rule.active ? av.statusActive : av.statusInactive]}>
           <Text style={[av.statusText, rule.active ? av.statusTextActive : av.statusTextInactive]}>
@@ -455,7 +432,6 @@ function RuleCard({
         <Text style={av.ruleTime}>{rule.fromHHMM} – {rule.toHHMM}</Text>
       </View>
 
-      {/* Day circles */}
       <View style={av.dayRow}>
         {DAY_LABELS.map((label, idx) => {
           const selected = rule.days.includes(idx);
@@ -472,7 +448,6 @@ function RuleCard({
         })}
       </View>
 
-      {/* Action buttons */}
       <View style={av.ruleActions}>
         <TouchableOpacity style={[av.ruleBtn, av.ruleBtnEdit]} onPress={onEdit} activeOpacity={0.8}>
           <Text style={av.ruleBtnEditText}>ערוך</Text>
@@ -484,8 +459,6 @@ function RuleCard({
     </View>
   );
 }
-
-// ── Availability Modal ─────────────────────────────────────
 
 function AvailabilityModal({
   visible, editingRule, profile, onClose,
@@ -500,7 +473,6 @@ function AvailabilityModal({
   const [toTime, setToTime] = useState('17:00');
   const [saving, setSaving] = useState(false);
 
-  // Populate from editing rule
   useEffect(() => {
     if (editingRule) {
       setSelectedDays(new Set(editingRule.days));
@@ -523,7 +495,6 @@ function AvailabilityModal({
   };
 
   const handleDayLongPress = (day: number) => {
-    // א׳ (0) → select weekdays 0-4; ו׳ (5) → select weekend 5-6
     if (day === 0) setSelectedDays(new Set([0, 1, 2, 3, 4]));
     else if (day === 5) setSelectedDays(new Set([5, 6]));
   };
@@ -558,7 +529,7 @@ function AvailabilityModal({
       }
       onClose();
     } catch {
-      Alert.alert('שגיאה', 'לא ניתן לשמור, נסה שוב');
+      showAlert('שגיאה', 'לא ניתן לשמור, נסה שוב');
     } finally {
       setSaving(false);
     }
@@ -573,12 +544,10 @@ function AvailabilityModal({
         <Text style={am.title}>הגדר זמינות חוזרת</Text>
         <Text style={am.subtitle}>בחר ימים ושעות שבהם החניה שלך פנויה</Text>
 
-        {/* Inline tip */}
         <View style={am.tip}>
           <Text style={am.tipText}>💡 תקבל התראות רק על בקשות שמתאימות לזמנים האלה</Text>
         </View>
 
-        {/* Day picker */}
         <Text style={am.sectionLabel}>באילו ימים?</Text>
         <View style={am.dayRow}>
           {DAY_LABELS.map((label, idx) => {
@@ -599,10 +568,8 @@ function AvailabilityModal({
           })}
         </View>
 
-        {/* Time picker */}
         <Text style={am.sectionLabel}>באילו שעות?</Text>
         <View style={am.timePickers}>
-          {/* toTime on the left (RTL) */}
           <View style={am.timePicker}>
             <Text style={am.timePickerLabel}>עד</Text>
             <View style={am.timeControls}>
@@ -623,7 +590,6 @@ function AvailabilityModal({
               </TouchableOpacity>
             </View>
           </View>
-          {/* fromTime on the right (RTL) */}
           <View style={am.timePicker}>
             <Text style={am.timePickerLabel}>מ-</Text>
             <View style={am.timeControls}>
@@ -646,14 +612,12 @@ function AvailabilityModal({
           </View>
         </View>
 
-        {/* Duration badge */}
         {durationText ? (
           <View style={am.durationBadge}>
             <Text style={am.durationText}>{durationText}</Text>
           </View>
         ) : null}
 
-        {/* Save button */}
         <TouchableOpacity
           style={[am.saveBtn, !canSave && am.saveBtnDisabled]}
           onPress={handleSave}
@@ -674,10 +638,7 @@ function AvailabilityModal({
   );
 }
 
-// ── Availability styles ────────────────────────────────────
-
 const av = StyleSheet.create({
-  // Explanation banner
   explanationCard: {
     backgroundColor: colors.bgCard,
     borderWidth: 1,
@@ -705,8 +666,6 @@ const av = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'right',
   },
-
-  // Empty state
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.xl,
@@ -720,8 +679,6 @@ const av = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
   },
-
-  // Add button
   addBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.lg,
@@ -732,8 +689,6 @@ const av = StyleSheet.create({
     marginBottom: spacing.md,
   },
   addBtnText: { ...typography.body, fontWeight: '700', color: colors.bg },
-
-  // Rule card
   ruleCard: {
     backgroundColor: colors.bgCard,
     borderWidth: 1,
@@ -760,8 +715,6 @@ const av = StyleSheet.create({
   statusText: { ...typography.caption, fontWeight: '600' },
   statusTextActive: { color: colors.success },
   statusTextInactive: { color: colors.textSecondary },
-
-  // Day circles (rule card)
   dayRow: {
     flexDirection: 'row',
     gap: spacing.xs,
@@ -780,8 +733,6 @@ const av = StyleSheet.create({
   dayCircleText: { ...typography.caption, fontWeight: '600' },
   dayCircleTextSelected: { color: colors.accent },
   dayCircleTextUnselected: { color: colors.textSecondary },
-
-  // Rule action buttons
   ruleActions: { flexDirection: 'row', gap: spacing.sm },
   ruleBtn: {
     flex: 1,
@@ -796,8 +747,6 @@ const av = StyleSheet.create({
   ruleBtnEditText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   ruleBtnDeleteText: { ...typography.caption, color: colors.error, fontWeight: '600' },
 });
-
-// ── Modal styles ───────────────────────────────────────────
 
 const am = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: '#00000080' },
@@ -820,8 +769,6 @@ const am = StyleSheet.create({
   },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'right', marginBottom: spacing.sm },
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing.md },
-
-  // Tip
   tip: {
     backgroundColor: colors.bgInput,
     borderRadius: radius.md,
@@ -830,8 +777,6 @@ const am = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   tipText: { ...typography.caption, color: colors.textSecondary, textAlign: 'right' },
-
-  // Section label
   sectionLabel: {
     ...typography.label,
     color: colors.textSecondary,
@@ -839,8 +784,6 @@ const am = StyleSheet.create({
     textAlign: 'right',
     marginBottom: spacing.sm,
   },
-
-  // Day picker
   dayRow: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -860,8 +803,6 @@ const am = StyleSheet.create({
   dayCircleText: { ...typography.caption, fontWeight: '700' },
   dayCircleTextSelected: { color: colors.accent },
   dayCircleTextUnselected: { color: colors.textSecondary },
-
-  // Time pickers
   timePickers: {
     flexDirection: 'row-reverse',
     gap: spacing.md,
@@ -891,8 +832,6 @@ const am = StyleSheet.create({
   },
   timeArrowTxt: { fontSize: 20, color: colors.textPrimary, fontWeight: '300', lineHeight: 24 },
   timeValue: { ...typography.subtitle, color: colors.accent, minWidth: 52, textAlign: 'center' },
-
-  // Duration badge
   durationBadge: {
     alignSelf: 'center',
     backgroundColor: colors.accentDim,
@@ -904,8 +843,6 @@ const am = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   durationText: { ...typography.caption, color: colors.accent },
-
-  // Save button
   saveBtn: {
     height: 56,
     borderRadius: radius.lg,
@@ -916,13 +853,10 @@ const am = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { ...typography.subtitle, color: colors.bg },
-
-  // Cancel
   cancelBtn: { alignItems: 'center' },
   cancelText: { ...typography.body, color: colors.textSecondary },
 });
 
-// ── SpotStatus indicator ───────────────────────────────────
 function SpotStatus({
   status, takenBy, spot,
 }: {
@@ -965,7 +899,6 @@ const ss = StyleSheet.create({
   text: { ...typography.caption, flex: 1, textAlign: 'right' },
 });
 
-// ── Helpers ────────────────────────────────────────────────
 function SectionTitle({ children }: { children: string }) {
   return <Text style={st.title}>{children}</Text>;
 }
@@ -980,11 +913,9 @@ const st = StyleSheet.create({
   },
 });
 
-// ── Styles ─────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   loader: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-
   header: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.lg, paddingTop: 60, paddingBottom: spacing.lg,
@@ -1014,15 +945,12 @@ const s = StyleSheet.create({
     borderRadius: radius.full, borderWidth: 1, borderColor: colors.border,
   },
   signOutText: { ...typography.caption, color: colors.textSecondary },
-
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
-
   label: {
     ...typography.label, color: colors.textSecondary,
     textTransform: 'uppercase', textAlign: 'right', marginBottom: spacing.sm,
   },
   toggleRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-
   spotSubLabel: {
     ...typography.label,
     color: colors.textSecondary,
@@ -1047,7 +975,6 @@ const s = StyleSheet.create({
   toggleActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
   toggleText: { ...typography.body, color: colors.textSecondary },
   toggleTextActive: { color: colors.accent, fontWeight: '700' },
-
   readOnlyRow: {
     flexDirection: 'row-reverse', justifyContent: 'space-between',
     alignItems: 'center', backgroundColor: colors.bgInput,
@@ -1066,7 +993,6 @@ const s = StyleSheet.create({
   prefInfo: { flex: 1, alignItems: 'flex-end' },
   prefLabel: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
   prefDesc: { ...typography.caption, color: colors.textSecondary, textAlign: 'right', marginTop: 2 },
-
   saveBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: spacing.lg, paddingBottom: 32,

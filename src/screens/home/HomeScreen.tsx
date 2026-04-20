@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Alert, Modal, Linking,
+  TouchableOpacity, ActivityIndicator, Modal, Linking,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useRoute, RouteProp } from '@react-navigation/native';
@@ -20,11 +20,11 @@ import { useActiveParking } from '../../hooks/useParking';
 import { towerLabel } from '../../utils/towerLabel';
 import { TimeoutError } from '../../utils/withTimeout';
 import { OfflineBanner } from '../../components/OfflineBanner';
+import { showAlert, showConfirm } from '../../utils/alert';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
 
 // ─── Approve Modal ────────────────────────────────────────
-// Spot number is read from the owner's saved profile — no manual input
 function ApproveModal({
   request, visible, onClose, ownerProfile,
 }: {
@@ -36,7 +36,6 @@ function ApproveModal({
   const [loading, setLoading] = useState(false);
   if (!request || !ownerProfile) return null;
 
-  // Owner has no spot registered
   if (!ownerProfile.ownedSpot) {
     return (
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -65,14 +64,14 @@ function ApproveModal({
         spotNumber: ownerProfile.ownedSpot!,
       });
       onClose();
-      Alert.alert('אישרת!', request.requesterName + ' יקבל/ת התראה ויכנס/תכנס מספר רכב.');
+      showAlert('אישרת!', request.requesterName + ' יקבל/ת התראה ויכנס/תכנס מספר רכב.');
     } catch (e: any) {
       if (e instanceof TimeoutError) {
-        Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+        showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else if (e?.message === 'ALREADY_TAKEN') {
-        Alert.alert('מאוחר מדי', 'מישהו אחר כבר אישר את הבקשה הזו.');
+        showAlert('מאוחר מדי', 'מישהו אחר כבר אישר את הבקשה הזו.');
       } else {
-        Alert.alert('שגיאה', 'לא ניתן לשלוח אישור');
+        showAlert('שגיאה', 'לא ניתן לשלוח אישור');
       }
     } finally {
       setLoading(false);
@@ -101,7 +100,6 @@ function ApproveModal({
           </View>
         ) : null}
 
-        {/* Spot info — read-only from profile */}
         <View style={m.spotDisplay}>
           <View style={m.spotBadge}>
             <Text style={m.spotBadgeLbl}>חניה</Text>
@@ -150,7 +148,6 @@ const m = StyleSheet.create({
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'right', lineHeight: 22, marginBottom: spacing.lg },
   label: { ...typography.label, color: colors.textSecondary, textAlign: 'right', textTransform: 'uppercase', marginBottom: spacing.sm },
 
-  // Spot display
   spotDisplay: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.bgInput, padding: spacing.md,
@@ -194,7 +191,6 @@ function ConfirmCarModal({
   const [carNumber, setCarNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Pre-fill with first car from profile, reset when request changes
   useEffect(() => {
     if (visible) {
       setCarNumber(userCarNumbers?.[0] ?? '');
@@ -206,23 +202,23 @@ function ConfirmCarModal({
 
   const handleConfirm = async () => {
     if (!carNumber.trim() || carNumber.replace(/-/g, '').length < 7) {
-      Alert.alert('שגיאה', 'הכנס מספר לוחית תקין (7-8 ספרות)');
+      showAlert('שגיאה', 'הכנס מספר לוחית תקין (7-8 ספרות)');
       return;
     }
     setLoading(true);
     try {
       await confirmParking(request.id, carNumber);
       onClose();
-      Alert.alert('מעולה!', 'חניה ' + request.spotNumber + ' מאושרת. כנס/י לחנות!');
+      showAlert('מעולה!', 'חניה ' + request.spotNumber + ' מאושרת. כנס/י לחנות!');
     } catch (e: any) {
       if (e instanceof TimeoutError) {
-        Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+        showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else {
         const message = e?.message;
         if (message === 'NOT_APPROVED' || message === 'NOT_FOUND' || e?.code === 'permission-denied') {
-          Alert.alert('לא ניתן לאשר', 'הבקשה כבר לא פעילה — ייתכן שפג תוקפה או שבעל החניה ביטל.');
+          showAlert('לא ניתן לאשר', 'הבקשה כבר לא פעילה — ייתכן שפג תוקפה או שבעל החניה ביטל.');
         } else {
-          Alert.alert('שגיאה', 'לא ניתן לאשר, נסה שוב');
+          showAlert('שגיאה', 'לא ניתן לאשר, נסה שוב');
         }
       }
     } finally {
@@ -286,24 +282,24 @@ const cc = StyleSheet.create({
 // ─── CancelApprovalRow ────────────────────────────────────
 function CancelApprovalRow({ requestId }: { requestId: string }) {
   const handleCancel = () => {
-    Alert.alert('בטל אישור', 'לבטל את האישור ולהחזיר את הבקשה לפיד?', [
-      { text: 'לא', style: 'cancel' },
-      {
-        text: 'כן, בטל',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancelApproval(requestId);
-          } catch (e: any) {
-            if (e instanceof TimeoutError) {
-              Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
-            } else {
-              Alert.alert('שגיאה', 'לא ניתן לבטל');
-            }
+    showConfirm(
+      'בטל אישור',
+      'לבטל את האישור ולהחזיר את הבקשה לפיד?',
+      async () => {
+        try {
+          await cancelApproval(requestId);
+        } catch (e: any) {
+          if (e instanceof TimeoutError) {
+            showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+          } else {
+            showAlert('שגיאה', 'לא ניתן לבטל');
           }
-        },
+        }
       },
-    ]);
+      'כן, בטל',
+      'לא',
+      true
+    );
   };
 
   return (
@@ -329,7 +325,6 @@ function callPhone(phone: string) {
   Linking.openURL(`tel:${phone}`);
 }
 function openWhatsApp(phone: string) {
-  // Remove leading + for wa.me URL
   const clean = phone.replace(/^\+/, '');
   Linking.openURL(`https://wa.me/${clean}`);
 }
@@ -424,29 +419,25 @@ function ActiveSessionModal({
             style={as.urgentBtn}
             activeOpacity={0.85}
             onPress={() => {
-              Alert.alert(
+              showConfirm(
                 'יציאה מוקדמת',
                 'לסמן שסיימת את החניה ולסגור את הבקשה?',
-                [
-                  { text: 'ביטול', style: 'cancel' },
-                  {
-                    text: 'כן, סיימתי',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await completeParking(session.id);
-                        onClose();
-                      } catch (e: any) {
-                        console.error('completeParking error:', e);
-                        if (e instanceof TimeoutError) {
-                          Alert.alert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
-                        } else {
-                          Alert.alert('שגיאה', 'לא ניתן לסגור את הבקשה');
-                        }
-                      }
-                    },
-                  },
-                ]
+                async () => {
+                  try {
+                    await completeParking(session.id);
+                    onClose();
+                  } catch (e: any) {
+                    console.error('completeParking error:', e);
+                    if (e instanceof TimeoutError) {
+                      showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
+                    } else {
+                      showAlert('שגיאה', 'לא ניתן לסגור את הבקשה');
+                    }
+                  }
+                },
+                'כן, סיימתי',
+                'ביטול',
+                true
               );
             }}
           >
@@ -567,10 +558,14 @@ function RequestCard({
   const status = statusMeta(req.status);
 
   const handleCancel = () => {
-    Alert.alert('ביטול בקשה', 'האם לבטל את הבקשה?', [
-      { text: 'לא', style: 'cancel' },
-      { text: 'כן, בטל', style: 'destructive', onPress: () => cancelRequest(req.id) },
-    ]);
+    showConfirm(
+      'ביטול בקשה',
+      'האם לבטל את הבקשה?',
+      () => cancelRequest(req.id),
+      'כן, בטל',
+      'לא',
+      true
+    );
   };
 
   return (
@@ -622,7 +617,6 @@ function RequestCard({
           )
       )}
 
-      {/* Owner can cancel their own approval within 2 minutes */}
       {mode === 'owner' && req.status === 'approved' && req.ownerId === uid && (
         <CancelApprovalRow requestId={req.id} />
       )}
@@ -726,8 +720,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [gaveTarget, setGaveTarget] = useState<ParkingRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Track which deep-link IDs have already opened their modal, so onSnapshot
-  // re-fires don't re-open the modal after the user dismisses it.
   const handledConfirmRef = useRef<string | null>(null);
   const handledApproveRef = useRef<string | null>(null);
 
@@ -735,7 +727,6 @@ export default function HomeScreen({ navigation }: Props) {
   const othersReqs = openReqs.filter((r) => r.requesterId !== uid);
   const pendingConfirm = myReqs.find((r) => r.status === 'approved');
 
-  // Auto-open confirm modal when arriving from a push notification
   useEffect(() => {
     const requestId = route.params?.openConfirm;
     if (!requestId || myReqs.length === 0) return;
@@ -747,7 +738,6 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }, [route.params?.openConfirm, myReqs]);
 
-  // Auto-open approve modal from push notification
   useEffect(() => {
     const requestId = route.params?.openApprove;
     if (!requestId || openReqs.length === 0) return;
@@ -760,7 +750,6 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }, [route.params?.openApprove, openReqs]);
 
-  // Auto-open active session modal from push notification
   useEffect(() => {
     if (route.params?.openActive && activeSession) {
       setSessionModalOpen(true);
@@ -772,7 +761,6 @@ export default function HomeScreen({ navigation }: Props) {
   return (
     <View style={s.screen}>
       <OfflineBanner />
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
           style={s.requestBtn}
@@ -800,7 +788,6 @@ export default function HomeScreen({ navigation }: Props) {
         ) : <View style={{ width: 80 }} />}
       </View>
 
-      {/* Active parking — only visible to the two involved parties */}
       {activeSession && (
         <ActiveParkingCard
           requestId={activeSession.id}
@@ -810,7 +797,6 @@ export default function HomeScreen({ navigation }: Props) {
         />
       )}
 
-      {/* Tabs */}
       <View style={s.tabs}>
         <TouchableOpacity
           style={[s.tab, tab === 'all' && s.tabActive]}
@@ -841,7 +827,6 @@ export default function HomeScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* List */}
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
@@ -900,7 +885,6 @@ export default function HomeScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
-      {/* Modals */}
       <ApproveModal
         request={approveTarget}
         visible={!!approveTarget}
