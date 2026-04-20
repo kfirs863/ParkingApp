@@ -94,6 +94,11 @@ jobs:
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install expo-router SSR stub
+        run: |
+          node scripts/install-expo-router-stub.js
+          ls -la node_modules/expo-router/node/render.js
+
       - name: Build Web Bundle (Expo export)
         run: npx expo export --platform web
 
