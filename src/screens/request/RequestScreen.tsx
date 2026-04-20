@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert,
+  TouchableOpacity, Alert, Platform,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../navigation/MainNavigator';
@@ -13,6 +13,16 @@ import { useUserProfile } from '../../config/firebase';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Request'> };
 type ParkingType = 'self' | 'guest';
+
+// ─── Cross-platform Alert Helper ─────────────────────────
+const showAlert = (title: string, message: string, onOk?: () => void) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+    onOk?.();
+  } else {
+    Alert.alert(title, message, [{ text: 'הבנתי', onPress: onOk }]);
+  }
+};
 
 // ─── RequestScreen ────────────────────────────────────────
 export default function RequestScreen({ navigation }: Props) {
@@ -90,20 +100,17 @@ export default function RequestScreen({ navigation }: Props) {
         ? 'בעלי החניות יקבלו התראה.\nכשמישהו יאשר — האורח שלך יוכל לחנות מיד.'
         : 'בעלי החניות יקבלו התראה.\nכשמישהו יאשר — תקבל/י הודעה.';
 
-      Alert.alert('הבקשה נשלחה!', msg,
-        [{ text: 'הבנתי', onPress: () => navigation.navigate('Home') }]
-      );
+      showAlert('הבקשה נשלחה!', msg, () => navigation.navigate('Home'));
     } catch (e: any) {
       if (e instanceof TimeoutError) {
-        Alert.alert('בעיית תקשורת', 'הבקשה לא נשלחה — בדוק את החיבור לאינטרנט ונסה שוב.');
+        showAlert('בעיית תקשורת', 'הבקשה לא נשלחה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else if (e?.message === 'DUPLICATE_REQUEST') {
-        Alert.alert(
+        showAlert(
           'יש לך בקשה פעילה',
-          'כבר שלחת בקשת חניה פתוחה. בטל אותה לפני שתשלח בקשה חדשה.',
-          [{ text: 'הבנתי' }]
+          'כבר שלחת בקשת חניה פתוחה. בטל אותה לפני שתשלח בקשה חדשה.'
         );
       } else {
-        Alert.alert('שגיאה', 'לא ניתן לשלוח בקשה, נסה שוב');
+        showAlert('שגיאה', 'לא ניתן לשלוח בקשה, נסה שוב');
       }
     } finally {
       setLoading(false);
