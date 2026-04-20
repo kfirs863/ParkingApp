@@ -6,6 +6,10 @@ on:
     branches:
       - master
 
+# Opt into Node.js 24 runtime for all actions (Node 20 is deprecated Jun 2026)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Detect which parts of the codebase changed ──────────────────────────────
   changes:
@@ -19,6 +23,9 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # On workflow_dispatch there is no 'before' SHA; compare against
+          # the previous commit so the filter works without warnings.
+          base: ${{ github.event_name == 'workflow_dispatch' && 'HEAD~1' || github.event.before }}
           filters: |
             backend:
               - 'functions/**'
