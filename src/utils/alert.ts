@@ -1,5 +1,7 @@
 import { Alert, Platform } from 'react-native';
 
+const APP_NAME = 'Upper House Parking';
+
 /**
  * A cross-platform alert helper.
  * On Web, it uses window.alert.
@@ -7,7 +9,9 @@ import { Alert, Platform } from 'react-native';
  */
 export const showAlert = (title: string, message: string, onOk?: () => void) => {
   if (Platform.OS === 'web') {
-    window.alert(`${title}\n\n${message}`);
+    // Browser titles are fixed to the domain. 
+    // We prepend the app name to the message to provide branding.
+    window.alert(`${APP_NAME}\n\n${title}\n${message}`);
     onOk?.();
   } else {
     Alert.alert(title, message, [{ text: 'הבנתי', onPress: onOk }]);
@@ -28,7 +32,7 @@ export const showConfirm = (
   isDestructive = false
 ) => {
   if (Platform.OS === 'web') {
-    const result = window.confirm(`${title}\n\n${message}`);
+    const result = window.confirm(`${APP_NAME}\n\n${title}\n${message}`);
     if (result) {
       onConfirm();
     }
