@@ -3,51 +3,33 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// We previously had unstable_conditionNames = ['react-native'] here, but that
-// forces the React Native build of Firebase even on Web, which breaks 
-// reCAPTCHA / Phone Auth (error: appVerificationDisabledForTesting).
-// Expo 51+ handles platform-specific conditions automatically.
-
-// Redirect native-only and SSR-only modules to web shims.
-// expo-notifications requires native bridge APIs absent in the browser.
-// expo-router/node/render.js is required by Expo SDK 54's Metro SSR pipeline
-// during 'expo export --platform web' even for non-expo-router apps.
+// EXPLICIT REDIRECTS FOR WEB:
+// The 'react-native' condition added by Expo/RN forces Firebase Auth 
+// to use the native build even on Web. We need to force it to use
+// the browser-compatible entry points for Web.
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // On web, redirect both firebase/auth and @firebase/auth to the browser
-  // CJS build. The global unstable_conditionNames preference for 'react-native'
-  // causes even the public firebase/auth entry to resolve to the RN build
-  // (AuthImpl there lacks .settings, breaking RecaptchaVerifier). Forcing both
-  // to the browser build ensures getAuth() returns the same AuthImpl class
-  // that RecaptchaVerifier expects.
-  if (
-    platform === 'web' &&
-    (moduleName === '@firebase/auth' || moduleName === 'firebase/auth')
-  ) {
-    return {
-      filePath: path.resolve(
-        __dirname,
-        'node_modules/@firebase/auth/dist/browser-cjs/index.js',
-      ),
-      type: 'sourceFile',
-    };
+  if (platform === 'web') {
+    if (moduleName === 'firebase/auth') {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/firebase/auth/dist/index.mjs'),
+        type: 'sourceFile',
+      };
+    }
+    if (moduleName === '@firebase/auth') {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/@firebase/auth/dist/index.mjs'),
+        type: 'sourceFile',
+      };
+    }
+    if (moduleName === 'expo-notifications') {
+      return {
+        filePath: path.resolve(__dirname, 'src/shims/expo-notifications-web.ts'),
+        type: 'sourceFile',
+      };
+    }
   }
-  if (platform === 'web' && moduleName === 'expo-notifications') {
-    return {
-      filePath: path.resolve(__dirname, 'src/shims/expo-notifications-web.ts'),
-      type: 'sourceFile',
-    };
-  }
-  if (
-    platform === 'web' &&
-    (moduleName === 'expo-router/node/render.js' ||
-      moduleName === 'expo-router/node/render')
-  ) {
-    return {
-      filePath: path.resolve(__dirname, 'src/shims/expo-router-render-web.js'),
-      type: 'sourceFile',
-    };
-  }
+
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }
