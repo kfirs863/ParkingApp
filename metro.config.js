@@ -19,11 +19,16 @@ config.resolver.unstable_conditionNames = [
 // during 'expo export --platform web' even for non-expo-router apps.
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // On web, redirect @firebase/auth to the browser CJS build so that
-  // RecaptchaVerifier and other browser-only APIs are available.
-  // The global unstable_conditionNames picks the react-native build (needed
-  // for native), but that build omits RecaptchaVerifier entirely.
-  if (platform === 'web' && moduleName === '@firebase/auth') {
+  // On web, redirect both firebase/auth and @firebase/auth to the browser
+  // CJS build. The global unstable_conditionNames preference for 'react-native'
+  // causes even the public firebase/auth entry to resolve to the RN build
+  // (AuthImpl there lacks .settings, breaking RecaptchaVerifier). Forcing both
+  // to the browser build ensures getAuth() returns the same AuthImpl class
+  // that RecaptchaVerifier expects.
+  if (
+    platform === 'web' &&
+    (moduleName === '@firebase/auth' || moduleName === 'firebase/auth')
+  ) {
     return {
       filePath: path.resolve(
         __dirname,
