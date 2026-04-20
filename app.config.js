@@ -4,11 +4,11 @@ module.exports = {
     slug: "parking-app",
     version: "1.0.2",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/icon-1024x1024.png",
     userInterfaceStyle: "dark",
     sdkVersion: "54.0.0",
     splash: {
-      image: "./assets/splash.png",
+      image: "./public/splash.png",
       resizeMode: "contain",
       backgroundColor: "#0A0A0F",
     },
@@ -22,7 +22,7 @@ module.exports = {
       versionCode: 2,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#F5A623",
+        backgroundColor: "#0A0A0F",
       },
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
       permissions: [
