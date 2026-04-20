@@ -89,7 +89,16 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
     // Lazily create the RecaptchaVerifier pointing at the mount div in App.tsx.
     // Re-use the existing verifier across calls to avoid duplicate widgets.
     if (!_webRecaptchaVerifier) {
-      _webRecaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      // RecaptchaVerifier requires an HTMLElement, not a string ID.
+      // Ensure the container exists in the DOM; create one if App.tsx's div
+      // hasn't mounted yet (e.g. called before first render completes).
+      let container = document.getElementById('recaptcha-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'recaptcha-container';
+        document.body.appendChild(container);
+      }
+      _webRecaptchaVerifier = new RecaptchaVerifier(auth, container, {
         size: 'invisible',
       });
     }
