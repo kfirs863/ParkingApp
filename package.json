@@ -13,7 +13,8 @@
     "deploy:functions": "cd functions && npm run build && cd .. && firebase deploy --only functions",
     "deploy:web": "npm run build:web && firebase deploy --only hosting",
     "deploy:all": "npm run deploy:rules && npm run deploy:functions",
-    "emulator": "firebase emulators:start"
+    "emulator": "firebase emulators:start",
+    "postinstall": "node scripts/install-expo-router-stub.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -29,7 +30,6 @@
     "expo-device": "~8.0.10",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.16",
-    "expo-router": "file:./shims/expo-router-stub",
     "expo-status-bar": "~3.0.9",
     "firebase": "^9.23.0",
     "react": "19.1.0",
