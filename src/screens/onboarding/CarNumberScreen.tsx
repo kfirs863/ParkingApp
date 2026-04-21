@@ -171,6 +171,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
     <ScreenShell>
       <StepIndicator total={4} current={3} />
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -293,6 +294,7 @@ const st = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: { paddingBottom: spacing.xl },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'right', marginBottom: spacing.sm },
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing.xl },
