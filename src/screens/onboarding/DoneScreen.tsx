@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell } from '../../components';
@@ -10,10 +10,14 @@ type Props = {
 };
 
 export default function DoneScreen({ navigation }: Props) {
-  const scale = useRef(new Animated.Value(0)).current;
-  const fade = useRef(new Animated.Value(0)).current;
+  // See WelcomeScreen: Animated's native driver isn't supported on web and
+  // the JS fallback leaves values stuck at 0, so skip the entry animation.
+  const isWeb = Platform.OS === 'web';
+  const scale = useRef(new Animated.Value(isWeb ? 1 : 0)).current;
+  const fade = useRef(new Animated.Value(isWeb ? 1 : 0)).current;
 
   useEffect(() => {
+    if (isWeb) return;
     Animated.sequence([
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 7 }),
       Animated.timing(fade, { toValue: 1, duration: 400, useNativeDriver: true }),

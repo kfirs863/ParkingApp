@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell } from '../../components';
@@ -10,9 +10,14 @@ type Props = {
 };
 
 export default function WelcomeScreen({ navigation }: Props) {
-  const fade = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(30)).current;
+  // On web the Animated native driver isn't available and the JS fallback
+  // leaves opacity stuck at 0, hiding the entire screen. Start at the final
+  // values on web so content is visible without relying on Animated.
+  const isWeb = Platform.OS === 'web';
+  const fade = useRef(new Animated.Value(isWeb ? 1 : 0)).current;
+  const slideUp = useRef(new Animated.Value(isWeb ? 0 : 30)).current;
   useEffect(() => {
+    if (isWeb) return;
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 700, useNativeDriver: true }),
       Animated.timing(slideUp, { toValue: 0, duration: 700, useNativeDriver: true }),
