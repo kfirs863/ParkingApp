@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -41,6 +41,16 @@ export default function App() {
     });
   }, []);
 
+  // Safety net: if auth + profile never resolve within 10s (e.g. Firestore
+  // listener hangs on a stale uid or blocked network), fall through to
+  // onboarding so the user never sees a frozen splash.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppState((prev) => (prev === 'loading' ? 'onboarding' : prev));
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Step 2: Listen to user profile — reacts when profile is created after onboarding
   useEffect(() => {
     if (!uid) return;
@@ -55,6 +65,7 @@ export default function App() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={colors.accent} size="large" />
+        <Text style={{ color: colors.accent, marginTop: 16, fontSize: 16 }}>טוען…</Text>
       </View>
     );
   }
