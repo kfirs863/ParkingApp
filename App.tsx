@@ -20,6 +20,19 @@ export default function App() {
   const [uid, setUid] = useState<string | null>(null);
   usePushNotifications(uid);
 
+  // Register the FCM service worker on every web load, regardless of auth or
+  // notification permission. Chrome's PWA install criteria require an active
+  // SW with a fetch handler on the first visit; without this, Chrome either
+  // hides the install UI (desktop) or falls back to a shortcut/stale WebAPK
+  // (Android) that never picks up updated maskable icons.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker
+      .register('/firebase-messaging-sw.js', { scope: '/' })
+      .catch((err) => console.warn('SW registration failed', err));
+  }, []);
+
   // Step 1: Track auth state
   useEffect(() => {
     return onAuthStateChanged((user: any) => {
