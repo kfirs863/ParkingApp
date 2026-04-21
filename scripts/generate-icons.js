@@ -55,22 +55,6 @@ async function generateAdaptiveIcon(destPath, size, safeZonePct, bgRgb) {
   console.log(`Generated ${path.relative(process.cwd(), destPath)} (${size}x${size}, logo ${Math.round(safeZonePct * 100)}%)`);
 }
 
-async function generateSplashIcon(destPath, size) {
-  const logoSize = Math.round(size * 0.6);
-  const logoBuf = await (await cropToLogo(src))
-    .resize(logoSize, logoSize, { fit: 'contain', background: TRANSPARENT })
-    .png()
-    .toBuffer();
-
-  await sharp({
-    create: { width: size, height: size, channels: 4, background: TRANSPARENT },
-  })
-    .composite([{ input: logoBuf, gravity: 'center' }])
-    .png()
-    .toFile(destPath);
-  console.log(`Generated ${path.relative(process.cwd(), destPath)} (${size}x${size}, logo 60% transparent bg)`);
-}
-
 async function generateNotificationIcon(destPath, size) {
   const cropped = await cropToLogo(src);
   const { data, info } = await cropped.raw().toBuffer({ resolveWithObject: true });
@@ -94,17 +78,18 @@ async function generateNotificationIcon(destPath, size) {
 async function generate() {
   await flattenFull(path.join(assetsDir, 'icon.png'), 1024);
   await generateAdaptiveIcon(path.join(assetsDir, 'adaptive-icon.png'), 1024, 0.65, BG_RGB);
-  await generateSplashIcon(path.join(assetsDir, 'splash-icon.png'), 1024);
   await generateNotificationIcon(path.join(assetsDir, 'notification-icon.png'), 96);
 
   if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
   for (const { file, size } of [
     { file: 'icon-192.png', size: 192 },
     { file: 'icon-512.png', size: 512 },
-    { file: 'icon-maskable-512.png', size: 512 },
   ]) {
     await flattenFull(path.join(publicDir, file), size);
   }
+  // PWA maskable icon: Chrome clips to a circle with an 80% safe zone.
+  // Logo sized to 60% so it stays inside the safe zone regardless of mask shape.
+  await generateAdaptiveIcon(path.join(publicDir, 'icon-maskable-512.png'), 512, 0.6, BG_RGB);
 }
 
 generate().catch((err) => { console.error(err); process.exit(1); });
