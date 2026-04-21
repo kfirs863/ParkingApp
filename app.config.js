@@ -7,11 +7,6 @@ module.exports = {
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
     sdkVersion: "54.0.0",
-    splash: {
-      image: "./assets/splash.png",
-      resizeMode: "contain",
-      backgroundColor: "#0A0A0F",
-    },
     assetBundlePatterns: ["**/*"],
     ios: {
       supportsTablet: true,
@@ -33,6 +28,19 @@ module.exports = {
     },
     plugins: [
       "@react-native-firebase/app",
+      [
+        "expo-splash-screen",
+        {
+          backgroundColor: "#0A0A0F",
+          image: "./assets/splash-icon.png",
+          imageWidth: 220,
+          resizeMode: "contain",
+          dark: {
+            backgroundColor: "#0A0A0F",
+            image: "./assets/splash-icon.png",
+          },
+        },
+      ],
       [
         "expo-notifications",
         {
