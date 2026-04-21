@@ -18,6 +18,13 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// A no-op fetch handler is required for Chrome's PWA installability check.
+// Without this, Chrome falls back to installing the PWA as a plain home-screen
+// shortcut (which uses the favicon and gets white-framed by the launcher)
+// instead of a proper WebAPK that honours the manifest's maskable icon and
+// background_color.
+self.addEventListener('fetch', () => {});
+
 // Handle messages received while the app is in the background or closed.
 messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title ?? 'Upper House Parking';
