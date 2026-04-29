@@ -35,7 +35,7 @@ export default function RequestScreen({ navigation }: Props) {
     return d;
   };
 
-  const today7 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return new Date(d.getTime() + 7 * 86400000); };
+  const today7 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 7); return d; };
 
   const [fromTime, setFromTime]     = useState<Date>(snap30());
   const [toTime, setToTime]         = useState<Date>(new Date(snap30().getTime() + 2 * 3600000));

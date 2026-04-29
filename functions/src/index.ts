@@ -1,4 +1,4 @@
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 
 admin.initializeApp();
@@ -82,19 +82,30 @@ function fmtTime(ts: admin.firestore.Timestamp): string {
   });
 }
 
-async function isSpotOccupied(
-  ownerId: string,
+// One query for all owners' active sessions, then per-owner overlap.
+async function findOccupiedOwners(
+  ownerIds: string[],
   fromTime: admin.firestore.Timestamp,
   toTime: admin.firestore.Timestamp
-): Promise<boolean> {
-  const snap = await db
-    .collection('parkingRequests')
-    .where('ownerId', '==', ownerId)
-    .where('status', 'in', ['approved', 'confirmed'])
-    .where('toTime', '>', fromTime)
-    .get();
-  // Client-side check for the other bound (Firestore can't range-filter two fields)
-  return snap.docs.some((d) => d.data().fromTime.toMillis() < toTime.toMillis());
+): Promise<Set<string>> {
+  const occupied = new Set<string>();
+  if (ownerIds.length === 0) return occupied;
+  // Firestore `in` clauses are capped at 30 entries (Nov 2023+)
+  const CHUNK = 30;
+  for (let i = 0; i < ownerIds.length; i += CHUNK) {
+    const chunk = ownerIds.slice(i, i + CHUNK);
+    const snap = await db
+      .collection('parkingRequests')
+      .where('ownerId', 'in', chunk)
+      .where('status', 'in', ['approved', 'confirmed'])
+      .where('toTime', '>', fromTime)
+      .get();
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (data.fromTime.toMillis() < toTime.toMillis()) occupied.add(data.ownerId);
+    }
+  }
+  return occupied;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -179,13 +190,24 @@ export const onNewParkingRequest = functions
     // who are not the requester and whose spot isn't already occupied.
     const ownersSnap = await db.collection('users').where('ownedSpot', '!=', null).get();
 
+    // First pass: filter cheaply by token + opt-out + self.
+    const candidates = ownersSnap.docs
+      .filter((d) => d.id !== req.requesterId)
+      .map((d) => ({ id: d.id, data: d.data() as UserDoc }))
+      .filter((u) => u.data.fcmToken && u.data.pushGeneral !== false);
+
+    // One bulk query to find which of those candidates already have an
+    // overlapping active session — replaces N per-owner reads.
+    const occupied = await findOccupiedOwners(
+      candidates.map((u) => u.id),
+      req.fromTime,
+      req.toTime
+    );
+
     const pushes: Promise<void>[] = [];
-    for (const d of ownersSnap.docs) {
-      const data = d.data() as UserDoc;
-      if (d.id === req.requesterId) continue;
-      if (!data.fcmToken || data.pushGeneral === false) continue;
-      if (await isSpotOccupied(d.id, req.fromTime, req.toTime)) continue;
-      pushes.push(sendPush(data.fcmToken as string, d.id,
+    for (const u of candidates) {
+      if (occupied.has(u.id)) continue;
+      pushes.push(sendPush(u.data.fcmToken as string, u.id,
         `${req.requesterName} מחפש/ת חניה`,
         `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. לחץ לאישור.`,
         { requestId: snap.id, action: 'approve' }
@@ -288,14 +310,18 @@ export const generateRecurringAvailability = functions
   .onRun(async () => {
     // Use Israel timezone for correct local date/time
     const nowUTC = new Date();
-    const israelFormatter = new Intl.DateTimeFormat('en-CA', {
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Jerusalem',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    });
-    const todayStr = israelFormatter.format(nowUTC); // YYYY-MM-DD
-    const israelDay = new Date(
-      nowUTC.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })
-    ).getDay();
+      year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+    }).formatToParts(nowUTC);
+    const partMap = Object.fromEntries(dateParts.map((p) => [p.type, p.value])) as Record<string, string>;
+    const yearStr = partMap.year ?? '1970';
+    const monthStr = partMap.month ?? '01';
+    const dayStr = partMap.day ?? '01';
+    const weekdayStr = partMap.weekday ?? 'Sun';
+    const todayStr = `${yearStr}-${monthStr}-${dayStr}`;
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const israelDay = dayMap[weekdayStr] ?? 0;
 
     const rulesSnap = await db
       .collection('availabilityRules')
@@ -305,6 +331,30 @@ export const generateRecurringAvailability = functions
 
     if (rulesSnap.empty) return;
 
+    // Build a Date in Asia/Jerusalem from a YYYY-MM-DD HH:MM string by
+    // measuring the timezone offset at that *local* instant (not at "now",
+    // which is wrong across DST boundaries). The trick: pretend the local
+    // wall-clock string is UTC, then ask Intl what wall-clock that UTC
+    // instant would have shown in Asia/Jerusalem. The difference is the
+    // offset to subtract.
+    const tzPartsAt = (d: Date) => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jerusalem', hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(d);
+      const m = Object.fromEntries(parts.map((p) => [p.type, p.value])) as Record<string, string>;
+      return Date.UTC(
+        +(m.year ?? '1970'), +(m.month ?? '01') - 1, +(m.day ?? '01'),
+        +(m.hour ?? '0'), +(m.minute ?? '0'), +(m.second ?? '0')
+      );
+    };
+    const buildJerusalemTime = (h: number, mi: number): Date => {
+      const asIfUTC = Date.UTC(+yearStr, +monthStr - 1, +dayStr, h, mi, 0);
+      const offsetMs = tzPartsAt(new Date(asIfUTC)) - asIfUTC;
+      return new Date(asIfUTC - offsetMs);
+    };
+
     // Firestore batches are limited to 500 operations
     const BATCH_SIZE = 499;
     let batch = db.batch();
@@ -312,16 +362,15 @@ export const generateRecurringAvailability = functions
 
     for (const d of rulesSnap.docs) {
       const rule = d.data();
-      const [fh, fm] = (rule.fromHHMM as string).split(':').map(Number);
-      const [th, tm] = (rule.toHHMM   as string).split(':').map(Number);
+      const fromParts = (rule.fromHHMM as string).split(':').map(Number);
+      const toParts = (rule.toHHMM as string).split(':').map(Number);
+      const fh = fromParts[0] ?? 0;
+      const fm = fromParts[1] ?? 0;
+      const th = toParts[0] ?? 0;
+      const tm = toParts[1] ?? 0;
 
-      // Build dates in Israel timezone by computing UTC offset
-      const israelNow = new Date(nowUTC.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
-      const offsetMs = israelNow.getTime() - nowUTC.getTime();
-      const baseDate = new Date(`${todayStr}T00:00:00.000Z`);
-
-      const fromTime = new Date(baseDate.getTime() + (fh * 60 + fm) * 60000 - offsetMs);
-      const toTime   = new Date(baseDate.getTime() + (th * 60 + tm) * 60000 - offsetMs);
+      const fromTime = buildJerusalemTime(fh, fm);
+      const toTime = buildJerusalemTime(th, tm);
 
       if (toTime <= nowUTC) continue;
 
@@ -369,7 +418,7 @@ export const generateRecurringAvailability = functions
 // ─────────────────────────────────────────────────────────
 export const mintCustomToken = functions
   .region('europe-west1')
-  .https.onCall(async (data, context) => {
+  .https.onCall(async (data) => {
     const idToken: string = data?.idToken;
     if (!idToken) throw new functions.https.HttpsError('invalid-argument', 'idToken required');
     try {
@@ -411,7 +460,7 @@ export const onParkingPing = functions
     if (!token) return;
 
     const toTime = (ping.toTime as admin.firestore.Timestamp).toDate()
-      .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+      .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
 
     await sendPush(
       token, ping.toUid,

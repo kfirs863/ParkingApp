@@ -30,6 +30,11 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // Existing parkingRequests window has not yet expired.
+    function isStillActive() {
+      return existingData().toTime > request.time;
+    }
+
     // ── Update rule helpers ──────────────────────────────
 
     // Requester cancels their own open request
@@ -44,6 +49,7 @@ service cloud.firestore {
     function canOwnerApprove() {
       return existingData().status == 'open'
         && existingData().requesterId != request.auth.uid
+        && isStillActive()
         && incomingData().ownerId == request.auth.uid
         && (incomingData().status == 'approved' || incomingData().status == 'confirmed')
         && 'ownerName' in incomingData()
@@ -56,6 +62,7 @@ service cloud.firestore {
     function canRequesterConfirm() {
       return existingData().status == 'approved'
         && existingData().requesterId == request.auth.uid
+        && isStillActive()
         && incomingData().status == 'confirmed'
         && 'carNumber' in incomingData()
         && incomingData().carNumber.size() >= 7
@@ -89,18 +96,29 @@ service cloud.firestore {
     }
 
     // ── users ─────────────────────────────────────────────
+    // Reads remain open to all authenticated users because cross-user lookups
+    // are required for: spot-conflict detection (checkSpotTaken queries
+    // ownedSpot across users), name/apartment display in approval UI, and
+    // owner discovery for the broadcast push trigger. Restrict to your own
+    // doc would break those flows. PII exposure is bounded by app sign-in
+    // (residents only) — if that changes, split a public projection out.
     match /users/{uid} {
       allow read: if isAuth();
       allow create: if isOwner(uid);
-
       allow update: if isOwner(uid);
-
       allow delete: if false;
     }
 
     // ── parkingRequests ───────────────────────────────────
     match /parkingRequests/{requestId} {
-      allow read: if isAuth();
+      // Open requests are visible to every authenticated user (anyone can
+      // approve). Once a request has an owner attached, only the requester
+      // and the owner can read it.
+      allow read: if isAuth() && (
+        resource.data.status == 'open'
+        || resource.data.requesterId == request.auth.uid
+        || resource.data.ownerId == request.auth.uid
+      );
 
       allow create: if isAuth()
         && incomingData().requesterId == request.auth.uid
@@ -159,17 +177,33 @@ service cloud.firestore {
     }
 
     // ── parkingPings ─────────────────────────────────────
+    // Server-side rate limit lives in onParkingPing (max 1 push per 5 min
+    // per requestId). Rules enforce field shape + that createdAt is server
+    // time, so the function's window query is trustworthy.
     match /parkingPings/{pingId} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        resource.data.fromUid == request.auth.uid
+        || resource.data.toUid == request.auth.uid
+      );
       allow create: if isAuth()
-        && incomingData().fromUid == request.auth.uid;
+        && incomingData().fromUid == request.auth.uid
+        && 'toUid' in incomingData()
+        && 'requestId' in incomingData()
+        && incomingData().createdAt == request.time;
+      allow update, delete: if false;
     }
 
     // ── thanks ───────────────────────────────────────────
     match /thanks/{thankId} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        resource.data.fromUid == request.auth.uid
+        || resource.data.toUid == request.auth.uid
+      );
       allow create: if isAuth()
-        && incomingData().fromUid == request.auth.uid;
+        && incomingData().fromUid == request.auth.uid
+        && 'toUid' in incomingData()
+        && incomingData().createdAt == request.time;
+      allow update, delete: if false;
     }
   }
 }

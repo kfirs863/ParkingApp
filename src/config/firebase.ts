@@ -44,6 +44,21 @@ const fns = getFunctions(app, 'europe-west1');
 
 // ─── Auth helpers ──────────────────────────────────────────
 export async function signOut() {
+  // Clear the FCM token from this user's doc before sign-out, so that
+  // pushes addressed to this UID don't keep landing on the device after
+  // logout (or worse, on the next user to sign in on the same device).
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await withTimeout(setDoc(
+        doc(db, 'users', uid),
+        { fcmToken: null, fcmTokenUpdatedAt: serverTimestamp() },
+        { merge: true },
+      ), 5000);
+    } catch (e) {
+      console.warn('FCM token cleanup failed (non-fatal):', e);
+    }
+  }
   try {
     const { getAuth: getRNAuth, signOut: rnSignOut } = require('@react-native-firebase/auth');
     await rnSignOut(getRNAuth());
