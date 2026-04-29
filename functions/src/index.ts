@@ -199,6 +199,13 @@ export const onNewParkingRequest = functions
 
 // ─────────────────────────────────────────────────────────
 // SCHEDULED: expire stale requests every 15 minutes
+//
+// Transitions parkingRequests whose toTime has passed:
+//   open|approved → expired   (parking never happened — notify both parties)
+//   confirmed     → completed (parking happened — silent close, no push)
+//
+// Without the 'confirmed' branch, sessions stayed in 'confirmed' forever
+// and bloated client queries (e.g. the "נתתי" badge on HomeScreen).
 // ─────────────────────────────────────────────────────────
 export const expireStaleRequests = functions
   .region('europe-west1')
@@ -207,7 +214,7 @@ export const expireStaleRequests = functions
     const now = admin.firestore.Timestamp.now();
     const staleSnap = await db
       .collection('parkingRequests')
-      .where('status', 'in', ['open', 'approved'])
+      .where('status', 'in', ['open', 'approved', 'confirmed'])
       .where('toTime', '<', now)
       .get();
 
@@ -223,6 +230,15 @@ export const expireStaleRequests = functions
 
       chunk.forEach((d) => {
         const data = d.data() as ParkingRequest;
+
+        // 'confirmed' means the parking actually happened — close it as
+        // 'completed' with no notifications (it's expected behavior).
+        if (data.status === 'confirmed') {
+          batch.update(d.ref, { status: 'completed', completedAt: now });
+          return;
+        }
+
+        // 'open' / 'approved' — the parking never took place.
         batch.update(d.ref, { status: 'expired', expiredAt: now });
 
         // Notify requester
@@ -258,7 +274,7 @@ export const expireStaleRequests = functions
     }
 
     await Promise.all(pushPromises);
-    functions.logger.info(`Expired ${staleSnap.size} stale requests`);
+    functions.logger.info(`Closed ${staleSnap.size} stale requests`);
   });
 
 
