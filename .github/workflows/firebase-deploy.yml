@@ -109,6 +109,17 @@ jobs:
       - name: Build Web Bundle (Expo export)
         run: npx expo export --platform web
 
+      - name: Verify Build Artifacts
+        run: |
+          set -e
+          test -f dist/index.html
+          test -f dist/manifest.json
+          test -f dist/firebase-messaging-sw.js
+          test -d dist/_expo
+          # index.html must be non-trivial; an empty template would still pass -f
+          test "$(wc -c < dist/index.html)" -gt 500
+          echo "Build artifacts OK"
+
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 

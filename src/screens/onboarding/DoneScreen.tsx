@@ -4,6 +4,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell } from '../../components';
 import { colors, spacing, typography, radius } from '../../theme';
+import { auth, db } from '../../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'Done'>;
@@ -56,12 +58,14 @@ export default function DoneScreen({ navigation }: Props) {
       <Animated.View style={{ opacity: fade }}>
         <Button
           label="כניסה לאפליקציה 🚀"
-          onPress={() => {
-            // App.tsx listens to the user profile doc via onSnapshot.
-            // Since saveUserProfile was called in CarNumberScreen,
-            // App.tsx will automatically switch from onboarding to main.
-            // This button is a no-op fallback — the transition should
-            // already be happening by the time the user sees this screen.
+          onPress={async () => {
+            // App.tsx switches to the main stack from an onSnapshot listener
+            // on users/{uid}. If that fires reliably the user never sees this
+            // button. If the listener has stalled (transient connectivity),
+            // a manual getDoc nudges Firestore's local cache and re-emits.
+            const uid = auth.currentUser?.uid;
+            if (!uid) return;
+            try { await getDoc(doc(db, 'users', uid)); } catch {}
           }}
         />
       </Animated.View>
