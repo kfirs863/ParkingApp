@@ -11,7 +11,7 @@
     "build:web": "expo export --platform web",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:functions": "cd functions && npm run build && cd .. && firebase deploy --only functions",
-    "deploy:web": "npm run build:web && firebase deploy --only hosting",
+    "deploy:web": "npm run build:web && firebase deploy --only hosting:upper-house-parking",
     "deploy:all": "npm run deploy:rules && npm run deploy:functions",
     "emulator": "firebase emulators:start",
     "postinstall": "node scripts/install-expo-router-stub.js",
