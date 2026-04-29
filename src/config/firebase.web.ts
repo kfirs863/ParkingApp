@@ -44,10 +44,14 @@ let _webRecaptchaVerifier: RecaptchaVerifier | null = null;
 let _webConfirmationResult: ConfirmationResult | null = null;
 
 export async function sendOTP(phoneNumber: string): Promise<void> {
+  // Dispose any prior verifier so we don't stack invisible reCAPTCHA widgets
+  // in the DOM each time the user taps Resend.
+  try { _webRecaptchaVerifier?.clear(); } catch {}
   _webRecaptchaVerifier = new RecaptchaVerifier('recaptcha-container', { size: 'invisible' }, auth);
   try {
     _webConfirmationResult = await webSignInWithPhoneNumber(auth, phoneNumber, _webRecaptchaVerifier);
   } catch (e) {
+    try { _webRecaptchaVerifier?.clear(); } catch {}
     _webRecaptchaVerifier = null;
     throw e;
   }
@@ -55,8 +59,19 @@ export async function sendOTP(phoneNumber: string): Promise<void> {
 
 export async function verifyOTP(code: string): Promise<void> {
   if (!_webConfirmationResult) throw new Error('No verification in progress — resend the code');
-  await _webConfirmationResult.confirm(code);
-  _webConfirmationResult = null;
+  try {
+    await _webConfirmationResult.confirm(code);
+    _webConfirmationResult = null;
+    try { _webRecaptchaVerifier?.clear(); } catch {}
+    _webRecaptchaVerifier = null;
+  } catch (e: any) {
+    // Only invalidate the confirmation when the SMS session itself is gone;
+    // a wrong-code error should let the user retry against the same session.
+    if (e?.code === 'auth/code-expired' || e?.code === 'auth/session-expired') {
+      _webConfirmationResult = null;
+    }
+    throw e;
+  }
 }
 
 export interface UserProfile {

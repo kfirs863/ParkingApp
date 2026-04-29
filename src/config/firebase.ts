@@ -69,17 +69,25 @@ export async function verifyOTP(code: string): Promise<void> {
   if (!_nativeConfirmationResult) throw new Error('No verification in progress — resend the code');
   const result = _nativeConfirmationResult;
 
-  await result.confirm(code);
+  // confirm(code) consumes the SMS session, so once it succeeds we must null
+  // out the cached result no matter what happens afterwards — otherwise a
+  // mintCustomToken hiccup would leave us with a stale, already-consumed
+  // confirmation that surfaces a misleading error on the next attempt.
+  let confirmed = false;
+  try {
+    await result.confirm(code);
+    confirmed = true;
 
-  const { getAuth: getRNAuth, getIdToken: rnGetIdToken } = require('@react-native-firebase/auth');
-  const currentUser = getRNAuth().currentUser;
-  if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
-  const idToken = await rnGetIdToken(currentUser, true);
-  const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
-  const { data } = await withTimeout(mintToken({ idToken }), 20000);
-  await _signInWithCustomToken(auth, data.customToken);
-
-  _nativeConfirmationResult = null;
+    const { getAuth: getRNAuth, getIdToken: rnGetIdToken } = require('@react-native-firebase/auth');
+    const currentUser = getRNAuth().currentUser;
+    if (!currentUser) throw new Error('Sign-in succeeded but no current user found');
+    const idToken = await rnGetIdToken(currentUser, true);
+    const mintToken = httpsCallable<{ idToken: string }, { customToken: string }>(fns, 'mintCustomToken');
+    const { data } = await withTimeout(mintToken({ idToken }), 20000);
+    await _signInWithCustomToken(auth, data.customToken);
+  } finally {
+    if (confirmed) _nativeConfirmationResult = null;
+  }
 }
 
 // ─── User Profile ─────────────────────────────────────────

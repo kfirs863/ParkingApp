@@ -34,6 +34,7 @@ function ApproveModal({
   ownerProfile: { name: string; apartment: string; tower: string; ownedSpot: string | null } | null;
 }) {
   const [loading, setLoading] = useState(false);
+  const safeClose = () => { if (loading) return; onClose(); };
   if (!request || !ownerProfile) return null;
 
   if (!ownerProfile.ownedSpot) {
@@ -79,8 +80,8 @@ function ApproveModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={safeClose}>
+      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={safeClose} disabled={loading} />
       <View style={m.sheet}>
         <View style={m.handle} />
         <Text style={m.title}>אשר חניה</Text>
@@ -124,7 +125,7 @@ function ApproveModal({
             ? <ActivityIndicator color={colors.bg} />
             : <Text style={m.btnText}>אשר ושלח התראה</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={onClose} style={m.cancel}>
+        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel}>
           <Text style={m.cancelText}>ביטול</Text>
         </TouchableOpacity>
       </View>
@@ -190,6 +191,7 @@ function ConfirmCarModal({
 }) {
   const [carNumber, setCarNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const safeClose = () => { if (loading) return; onClose(); };
 
   useEffect(() => {
     if (visible) {
@@ -227,8 +229,8 @@ function ConfirmCarModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={safeClose}>
+      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={safeClose} disabled={loading} />
       <View style={m.sheet}>
         <View style={m.handle} />
         <View style={cc.banner}>
@@ -260,7 +262,7 @@ function ConfirmCarModal({
             ? <ActivityIndicator color={colors.bg} />
             : <Text style={m.btnText}>אשר ורוץ לחנות! 🚗</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={onClose} style={m.cancel}>
+        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel}>
           <Text style={m.cancelText}>אחר כך</Text>
         </TouchableOpacity>
       </View>
