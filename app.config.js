@@ -44,7 +44,7 @@ module.exports = {
       name: 'Upper House Parking',
       shortName: 'Parking',
       description: 'ניהול חניות משותף לשכנים',
-      themeColor: '#F5A623',
+      themeColor: '#0A0A0F',
       backgroundColor: '#0A0A0F',
       display: 'standalone',
       orientation: 'portrait',

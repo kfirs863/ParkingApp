@@ -8,7 +8,7 @@ import { RouteProp } from '@react-navigation/native';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, Input, ScreenShell, StepIndicator } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
-import { saveUserProfile, checkSpotTaken } from '../../config/firebase';
+import { saveUserProfile, checkSpotTaken, claimSpot, SpotTakenError } from '../../config/firebase';
 import { towerLabel } from '../../utils/towerLabel';
 import { FLOORS, ParkingFloor, buildSpotId, parseSpotId } from '../../utils/spotId';
 
@@ -103,17 +103,26 @@ export default function CarNumberScreen({ navigation, route }: Props) {
       return;
     }
     setLoading(true);
+    const newSpotId = hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null;
     try {
+      if (newSpotId) {
+        await claimSpot(newSpotId);
+      }
       await saveUserProfile({
         name,
         tower,
         apartment,
         carNumbers: carNumber.trim() ? [normalizedPlate] : [],
-        ownedSpot: hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null,
+        ownedSpot: newSpotId,
       });
       navigation.navigate('Done');
-    } catch {
-      Alert.alert('שגיאה', 'לא ניתן לשמור פרופיל, נסה שוב');
+    } catch (e) {
+      if (e instanceof SpotTakenError) {
+        setSpotCheck({ status: 'taken', apartment: '—', tower: '' });
+        Alert.alert('חניה תפוסה', 'מישהו אחר רשם את החניה הזו ממש כרגע. בחר חניה אחרת.');
+      } else {
+        Alert.alert('שגיאה', 'לא ניתן לשמור פרופיל, נסה שוב');
+      }
     } finally {
       setLoading(false);
     }

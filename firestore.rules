@@ -145,6 +145,19 @@ service cloud.firestore {
         && existingData().ownerId == request.auth.uid;
     }
 
+    // ── spotOwnership ─────────────────────────────────────
+    // Sentinel docs that enforce one-owner-per-spot atomically.
+    // Doc id = spotId (e.g. "B2-42"). Create succeeds only if the doc
+    // does not already exist, giving a race-free "first writer wins".
+    match /spotOwnership/{spotId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && incomingData().uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/spotOwnership/$(spotId));
+      allow delete: if isAuth()
+        && existingData().uid == request.auth.uid;
+    }
+
     // ── parkingPings ─────────────────────────────────────
     match /parkingPings/{pingId} {
       allow read: if isAuth();

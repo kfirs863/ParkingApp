@@ -6,7 +6,7 @@ import {
 
 import { FLOORS, ParkingFloor, buildSpotId, parseSpotId } from '../../utils/spotId';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, signOut, useUserProfile, checkSpotTaken, UserProfile } from '../../config/firebase';
+import { auth, db, signOut, useUserProfile, checkSpotTaken, claimSpot, releaseSpot, SpotTakenError, UserProfile } from '../../config/firebase';
 import { towerLabel } from '../../utils/towerLabel';
 import { Button, Input } from '../../components';
 import { colors, spacing, radius, typography } from '../../theme';
@@ -105,20 +105,42 @@ export default function ProfileScreen() {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     setSaving(true);
+    const oldSpot = profile?.ownedSpot ?? null;
+    const newSpot = hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null;
+    let claimedNewSpot = false;
     try {
+      // If switching to a different spot (or first time claiming), try to lock the
+      // new sentinel doc before any user-doc write so two users can't end up owners.
+      if (newSpot && newSpot !== oldSpot) {
+        await claimSpot(newSpot);
+        claimedNewSpot = true;
+      }
       const updated: Partial<UserProfile> & { updatedAt: any } = {
         name:       name.trim(),
         tower:      tower!,
         apartment:  apartment.trim(),
         carNumbers: carNumber.trim() ? [plateNorm] : [],
-        ownedSpot:  hasSpot && spotFloor ? buildSpotId(spotFloor, spotNumber) : null,
+        ownedSpot:  newSpot,
         updatedAt:  serverTimestamp(),
       };
       await updateDoc(doc(db, 'users', uid), updated);
+      // Release the old lock only after the user doc has been updated, so a
+      // crash mid-flow leaves us with a strict superset of locks (safe).
+      if (oldSpot && oldSpot !== newSpot) {
+        await releaseSpot(oldSpot);
+      }
       setDirty(false);
       showAlert('✅ נשמר', 'הפרופיל עודכן בהצלחה');
-    } catch {
-      showAlert('שגיאה', 'לא ניתן לשמור, נסה שוב');
+    } catch (e) {
+      if (claimedNewSpot && newSpot) {
+        // Roll back the lock we just took so we don't strand it.
+        await releaseSpot(newSpot);
+      }
+      if (e instanceof SpotTakenError) {
+        showAlert('חניה תפוסה', 'מישהו אחר רשם את החניה הזו ממש כרגע. בחר חניה אחרת.');
+      } else {
+        showAlert('שגיאה', 'לא ניתן לשמור, נסה שוב');
+      }
     } finally {
       setSaving(false);
     }
@@ -472,6 +494,7 @@ function AvailabilityModal({
   const [fromTime, setFromTime] = useState('08:00');
   const [toTime, setToTime] = useState('17:00');
   const [saving, setSaving] = useState(false);
+  const safeClose = () => { if (saving) return; onClose(); };
 
   useEffect(() => {
     if (editingRule) {
@@ -536,8 +559,8 @@ function AvailabilityModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={am.backdrop} activeOpacity={1} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={safeClose}>
+      <TouchableOpacity style={am.backdrop} activeOpacity={1} onPress={safeClose} disabled={saving} />
       <View style={am.sheet}>
         <View style={am.handle} />
 
@@ -630,7 +653,7 @@ function AvailabilityModal({
           }
         </TouchableOpacity>
 
-        <TouchableOpacity style={am.cancelBtn} onPress={onClose} activeOpacity={0.7}>
+        <TouchableOpacity style={am.cancelBtn} onPress={safeClose} disabled={saving} activeOpacity={0.7}>
           <Text style={am.cancelText}>ביטול</Text>
         </TouchableOpacity>
       </View>

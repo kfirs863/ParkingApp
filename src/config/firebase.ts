@@ -8,7 +8,7 @@ import {
   User,
 } from 'firebase/auth';
 import {
-  getFirestore, doc, setDoc, getDoc, getDocs,
+  getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc,
   collection, query, where, serverTimestamp, onSnapshot,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -101,6 +101,34 @@ export async function checkSpotTaken(spotNumber: string): Promise<{ apartment: s
   if (others.length === 0) return null;
   const data = others[0].data();
   return { apartment: data.apartment, tower: data.tower };
+}
+
+export class SpotTakenError extends Error {
+  constructor() {
+    super('SPOT_TAKEN');
+    this.name = 'SpotTakenError';
+  }
+}
+
+export async function claimSpot(spotId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not authenticated');
+  const ref = doc(db, 'spotOwnership', spotId);
+  try {
+    await withTimeout(setDoc(ref, { uid, claimedAt: serverTimestamp() }));
+  } catch (e: any) {
+    if (e?.code === 'permission-denied') throw new SpotTakenError();
+    throw e;
+  }
+}
+
+export async function releaseSpot(spotId: string): Promise<void> {
+  const ref = doc(db, 'spotOwnership', spotId);
+  try {
+    await withTimeout(deleteDoc(ref));
+  } catch {
+    // Best-effort: if the doc never existed or was already released, that's fine.
+  }
 }
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
