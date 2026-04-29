@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Platform, Text } from 'react-native';
+import { View, ActivityIndicator, Platform, Text, I18nManager } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -12,6 +12,16 @@ import MainNavigator from './src/navigation/MainNavigator';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { colors } from './src/theme';
 import ErrorBoundary from './src/components/ErrorBoundary';
+
+// Every string in this app is Hebrew and the layout is hand-tuned for RTL
+// (row-reverse, textAlign:right). On an English-locale Android device the
+// default direction is LTR, which renders the whole UI mirrored. Force RTL
+// at module import so the layout is correct regardless of OS locale.
+// Web ignores I18nManager and uses the dir="rtl" attribute on <html> instead.
+if (Platform.OS !== 'web') {
+  I18nManager.allowRTL(true);
+  if (!I18nManager.isRTL) I18nManager.forceRTL(true);
+}
 
 type AppState = 'loading' | 'onboarding' | 'main';
 
