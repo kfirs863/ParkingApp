@@ -99,13 +99,25 @@ export function useMyApprovals() {
       where('status', 'in', ['approved', 'confirmed']),
       orderBy('createdAt', 'desc')
     );
-    return onSnapshot(q, (snap) => {
-      setRequests(snap.docs.map(toRequest));
+    // Filter out approvals whose window already ended. The scheduled
+    // expireRequests cron only transitions 'open'/'approved' → 'expired';
+    // 'confirmed' requests stay in 'confirmed' forever, so without this
+    // filter the "נתתי (n)" badge would keep counting past sessions.
+    let latest: ParkingRequest[] = [];
+    const isStillActive = (r: ParkingRequest) => r.toTime.getTime() > Date.now();
+    const publish = () => setRequests(latest.filter(isStillActive));
+    const unsub = onSnapshot(q, (snap) => {
+      latest = snap.docs.map(toRequest);
+      publish();
       setLoading(false);
     }, (err) => {
       console.error('My approvals snapshot error:', err);
       setLoading(false);
     });
+    // Re-evaluate the filter every minute so the badge clears in real time
+    // when a session's toTime passes while the screen is open.
+    const tick = setInterval(publish, 60_000);
+    return () => { unsub(); clearInterval(tick); };
   }, [uid]);
   return { requests, loading };
 }
