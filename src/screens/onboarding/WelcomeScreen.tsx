@@ -45,9 +45,9 @@ export default function WelcomeScreen({ navigation }: Props) {
         {/* Features */}
         <View style={styles.features}>
           {[
-            { icon: '🅿️', text: 'הצע את החניה שלך לשכנים' },
-            { icon: '🔔', text: 'קבל התראה כשיש חניה פנויה' },
-            { icon: '💬', text: 'תאם ישירות עם הבעלים' },
+            { icon: '🙋', text: 'בקש חניה כשאתה צריך מקום' },
+            { icon: '🅿️', text: 'יש לך חניה? אשר בקשות של שכנים' },
+            { icon: '🔔', text: 'קבל התראה כשהבקשה שלך אושרה' },
           ].map(({ icon, text }) => (
             <View key={text} style={styles.featureRow}>
               <Text style={styles.featureIcon}>{icon}</Text>
