@@ -42,7 +42,7 @@ module.exports = {
       bundler: 'metro',
       output: 'single',
       name: 'Upper House Parking',
-      shortName: 'Parking',
+      shortName: 'Upper House Parking',
       description: 'ניהול חניות משותף לשכנים',
       themeColor: '#0A0A0F',
       backgroundColor: '#0A0A0F',
