@@ -49,7 +49,7 @@ export default function ProfileScreen({ navigation }: Props) {
               key={t}
               style={[styles.toggleBtn, tower === t && styles.toggleBtnActive]}
               onPress={() => setTower(t)}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Text style={[styles.toggleText, tower === t && styles.toggleTextActive]}>
                 {towerLabel(t)}

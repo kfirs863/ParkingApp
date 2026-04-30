@@ -212,7 +212,7 @@ export default function ProfileScreen() {
               key={t}
               style={[s.toggle, tower === t && s.toggleActive]}
               onPress={() => { setTower(t); setDirty(true); }}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Text style={[s.toggleText, tower === t && s.toggleTextActive]}>{towerLabel(t)}</Text>
             </TouchableOpacity>
@@ -253,7 +253,7 @@ export default function ProfileScreen() {
                 setDirty(true);
                 if (!val) { setSpotFloor(null); setSpotNumber(''); setSpotCheck('idle'); }
               }}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
             >
               <Text style={[s.toggleText, hasSpot === val && s.toggleTextActive]}>
                 {val ? '✅ יש לי' : '❌ אין לי'}
@@ -271,7 +271,7 @@ export default function ProfileScreen() {
                   key={f}
                   style={[s.floorBtn, spotFloor === f && s.floorBtnActive]}
                   onPress={() => handleFloorSelect(f)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   <Text style={[s.floorBtnText, spotFloor === f && s.floorBtnTextActive]}>{f}</Text>
                 </TouchableOpacity>
@@ -406,7 +406,7 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
           <Text style={av.emptyEmoji}>📅</Text>
           <Text style={av.emptyTitle}>לא הגדרת זמינות</Text>
           <Text style={av.emptySubtitle}>הגדר את הזמנים הקבועים שבהם החניה שלך פנויה</Text>
-          <TouchableOpacity style={av.addBtn} onPress={openAdd} activeOpacity={0.8}>
+          <TouchableOpacity style={av.addBtn} onPress={openAdd} activeOpacity={0.7}>
             <Text style={av.addBtnText}>+ הוסף כלל זמינות</Text>
           </TouchableOpacity>
         </View>
@@ -420,7 +420,7 @@ function AvailabilitySection({ profile }: { profile: UserProfile }) {
               onDelete={() => handleDelete(rule)}
             />
           ))}
-          <TouchableOpacity style={av.addBtn} onPress={openAdd} activeOpacity={0.8}>
+          <TouchableOpacity style={av.addBtn} onPress={openAdd} activeOpacity={0.7}>
             <Text style={av.addBtnText}>+ הוסף כלל זמינות</Text>
           </TouchableOpacity>
         </>
@@ -471,10 +471,10 @@ function RuleCard({
       </View>
 
       <View style={av.ruleActions}>
-        <TouchableOpacity style={[av.ruleBtn, av.ruleBtnEdit]} onPress={onEdit} activeOpacity={0.8}>
+        <TouchableOpacity style={[av.ruleBtn, av.ruleBtnEdit]} onPress={onEdit} activeOpacity={0.7}>
           <Text style={av.ruleBtnEditText}>ערוך</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[av.ruleBtn, av.ruleBtnDelete]} onPress={onDelete} activeOpacity={0.8}>
+        <TouchableOpacity style={[av.ruleBtn, av.ruleBtnDelete]} onPress={onDelete} activeOpacity={0.7}>
           <Text style={av.ruleBtnDeleteText}>מחק</Text>
         </TouchableOpacity>
       </View>
@@ -645,7 +645,7 @@ function AvailabilityModal({
           style={[am.saveBtn, !canSave && am.saveBtnDisabled]}
           onPress={handleSave}
           disabled={!canSave || saving}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           {saving
             ? <ActivityIndicator color={colors.bg} />

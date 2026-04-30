@@ -133,7 +133,7 @@ export default function RequestScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[s.typeBtn, parkingType === 'self' && s.typeBtnActive]}
             onPress={() => { setParkingType('self'); setGuestPlate(''); setPlateError(''); }}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             <Text style={s.typeEmoji}>🙋</Text>
             <Text style={[s.typeLabel, parkingType === 'self' && s.typeLabelActive]}>עבורי</Text>
@@ -145,7 +145,7 @@ export default function RequestScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[s.typeBtn, parkingType === 'guest' && s.typeBtnActive]}
             onPress={() => setParkingType('guest')}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             <Text style={s.typeEmoji}>👥</Text>
             <Text style={[s.typeLabel, parkingType === 'guest' && s.typeLabelActive]}>עבור אורח</Text>

@@ -34,7 +34,7 @@ export const Button: React.FC<ButtonProps> = ({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
       style={[
         styles.btn,
         isPrimary ? styles.btnPrimary : styles.btnGhost,

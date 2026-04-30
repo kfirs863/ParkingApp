@@ -52,7 +52,7 @@ export const ActiveParkingCard: React.FC<ActiveParkingCardProps> = ({
     <TouchableOpacity
       style={s.card}
       onPress={onPress}
-      activeOpacity={0.9}
+      activeOpacity={0.7}
     >
       <View style={s.mainInfo}>
         <View style={s.spotContainer}>

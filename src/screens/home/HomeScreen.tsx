@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Modal, Linking,
+  TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useRoute, RouteProp, useIsFocused } from '@react-navigation/native';
@@ -20,7 +20,10 @@ import { useActiveParking } from '../../hooks/useParking';
 import { towerLabel } from '../../utils/towerLabel';
 import { TimeoutError } from '../../utils/withTimeout';
 import { OfflineBanner } from '../../components/OfflineBanner';
+import { Sheet } from '../../components/Sheet';
+import { RequestListSkeleton } from '../../components/RequestCardSkeleton';
 import { showAlert, showConfirm } from '../../utils/alert';
+import { haptics } from '../../utils/haptics';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
 
@@ -39,19 +42,16 @@ function ApproveModal({
 
   if (!ownerProfile.ownedSpot) {
     return (
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={m.sheet}>
-          <View style={m.handle} />
-          <Text style={m.title}>לא ניתן לאשר</Text>
-          <Text style={m.sub}>
-            {`לא רשום לך מספר חניה בפרופיל.\nעדכן את הפרופיל שלך כדי לאשר בקשות.`}
-          </Text>
-          <TouchableOpacity onPress={onClose} style={m.cancel}>
-            <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      <Sheet visible={visible} onClose={onClose} contentStyle={m.sheet}>
+        <View style={m.handle} />
+        <Text style={m.title}>לא ניתן לאשר</Text>
+        <Text style={m.sub}>
+          {`לא רשום לך מספר חניה בפרופיל.\nעדכן את הפרופיל שלך כדי לאשר בקשות.`}
+        </Text>
+        <TouchableOpacity onPress={onClose} style={m.cancel} activeOpacity={0.7}>
+          <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
+        </TouchableOpacity>
+      </Sheet>
     );
   }
 
@@ -64,9 +64,11 @@ function ApproveModal({
         tower: ownerProfile.tower,
         spotNumber: ownerProfile.ownedSpot!,
       });
+      haptics.success();
       onClose();
       showAlert('אישרת!', request.requesterName + ' יקבל/ת התראה ויכנס/תכנס מספר רכב.');
     } catch (e: any) {
+      haptics.error();
       if (e instanceof TimeoutError) {
         showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else if (e?.message === 'ALREADY_TAKEN') {
@@ -80,9 +82,7 @@ function ApproveModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={safeClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={safeClose} disabled={loading} />
-      <View style={m.sheet}>
+    <Sheet visible={visible} onClose={safeClose} dismissDisabled={loading} contentStyle={m.sheet}>
         <View style={m.handle} />
         <Text style={m.title}>אשר חניה</Text>
         <Text style={m.sub}>
@@ -119,17 +119,16 @@ function ApproveModal({
           style={[m.btn, loading && { opacity: 0.5 }]}
           onPress={handleApprove}
           disabled={loading}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
           {loading
             ? <ActivityIndicator color={colors.bg} />
             : <Text style={m.btnText}>אשר ושלח התראה</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel}>
+        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel} activeOpacity={0.7}>
           <Text style={m.cancelText}>ביטול</Text>
         </TouchableOpacity>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -210,9 +209,11 @@ function ConfirmCarModal({
     setLoading(true);
     try {
       await confirmParking(request.id, carNumber);
+      haptics.success();
       onClose();
       showAlert('מעולה!', 'חניה ' + request.spotNumber + ' מאושרת. כנס/י לחנות!');
     } catch (e: any) {
+      haptics.error();
       if (e instanceof TimeoutError) {
         showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
       } else {
@@ -229,9 +230,7 @@ function ConfirmCarModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={safeClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={safeClose} disabled={loading} />
-      <View style={m.sheet}>
+    <Sheet visible={visible} onClose={safeClose} dismissDisabled={loading} contentStyle={m.sheet}>
         <View style={m.handle} />
         <View style={cc.banner}>
           <Text style={cc.bannerEmoji}>🎉</Text>
@@ -256,17 +255,16 @@ function ConfirmCarModal({
           style={[m.btn, loading && { opacity: 0.5 }]}
           onPress={handleConfirm}
           disabled={loading}
-          activeOpacity={0.85}
+          activeOpacity={0.7}
         >
           {loading
             ? <ActivityIndicator color={colors.bg} />
             : <Text style={m.btnText}>אשר ורוץ לחנות! 🚗</Text>}
         </TouchableOpacity>
-        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel}>
+        <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel} activeOpacity={0.7}>
           <Text style={m.cancelText}>אחר כך</Text>
         </TouchableOpacity>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -290,7 +288,9 @@ function CancelApprovalRow({ requestId }: { requestId: string }) {
       async () => {
         try {
           await cancelApproval(requestId);
+          haptics.warning();
         } catch (e: any) {
+          haptics.error();
           if (e instanceof TimeoutError) {
             showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
           } else {
@@ -305,7 +305,7 @@ function CancelApprovalRow({ requestId }: { requestId: string }) {
   };
 
   return (
-    <TouchableOpacity style={car.btn} onPress={handleCancel} activeOpacity={0.8}>
+    <TouchableOpacity style={car.btn} onPress={handleCancel} activeOpacity={0.7}>
       <Text style={car.text}>בטל אישור</Text>
     </TouchableOpacity>
   );
@@ -338,10 +338,10 @@ function openWhatsApp(phone: string) {
 function ContactButtons({ phone, style }: { phone: string; style?: object }) {
   return (
     <View style={[ct.row, style]}>
-      <TouchableOpacity style={ct.btn} onPress={() => callPhone(phone)} activeOpacity={0.8}>
+      <TouchableOpacity style={ct.btn} onPress={() => callPhone(phone)} activeOpacity={0.7}>
         <Text style={ct.btnText}>📞 התקשר</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[ct.btn, ct.waBtn]} onPress={() => openWhatsApp(phone)} activeOpacity={0.8}>
+      <TouchableOpacity style={[ct.btn, ct.waBtn]} onPress={() => openWhatsApp(phone)} activeOpacity={0.7}>
         <Text style={ct.btnText}>💬 WhatsApp</Text>
       </TouchableOpacity>
     </View>
@@ -377,9 +377,7 @@ function ActiveSessionModal({
   const carNumber    = session.carNumber;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={m.sheet}>
+    <Sheet visible={visible} onClose={onClose} contentStyle={m.sheet}>
         <View style={m.handle} />
         <Text style={m.title}>פרטי חניה פעילה</Text>
 
@@ -410,7 +408,7 @@ function ActiveSessionModal({
         {isOwner && otherPhone ? (
           <TouchableOpacity
             style={as.urgentBtn}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
             onPress={() => {
               const msg = `שלום ${otherName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
               Linking.openURL(`https://wa.me/${otherPhone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`).catch(() =>
@@ -425,7 +423,7 @@ function ActiveSessionModal({
         {!isOwner && (
           <TouchableOpacity
             style={as.urgentBtn}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
             onPress={() => {
               showConfirm(
                 'יציאה מוקדמת',
@@ -433,8 +431,10 @@ function ActiveSessionModal({
                 async () => {
                   try {
                     await completeParking(session.id);
+                    haptics.success();
                     onClose();
                   } catch (e: any) {
+                    haptics.error();
                     console.error('completeParking error:', e);
                     if (e instanceof TimeoutError) {
                       showAlert('בעיית תקשורת', 'הפעולה לא הושלמה — בדוק את החיבור לאינטרנט ונסה שוב.');
@@ -453,11 +453,10 @@ function ActiveSessionModal({
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity onPress={onClose} style={m.cancel}>
+        <TouchableOpacity onPress={onClose} style={m.cancel} activeOpacity={0.7}>
           <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
         </TouchableOpacity>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -497,9 +496,7 @@ function GaveModal({ request, visible, onClose }: {
   const phone = request.requesterPhone;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={m.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={m.sheet}>
+    <Sheet visible={visible} onClose={onClose} contentStyle={m.sheet}>
         <View style={m.handle} />
         <Text style={m.title}>פרטי החונה</Text>
 
@@ -533,7 +530,7 @@ function GaveModal({ request, visible, onClose }: {
         {phone ? (
           <TouchableOpacity
             style={as.urgentBtn}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
             onPress={() => {
               const msg = `שלום ${request.requesterName}, אני צריך את החניה שלי בדחיפות. אשמח אם תוכל/י לפנות אותה בהקדם. תודה!`;
               Linking.openURL(`https://wa.me/${phone.replace(/^\+/, '')}?text=${encodeURIComponent(msg)}`).catch(() =>
@@ -545,11 +542,10 @@ function GaveModal({ request, visible, onClose }: {
           </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity onPress={onClose} style={m.cancel}>
+        <TouchableOpacity onPress={onClose} style={m.cancel} activeOpacity={0.7}>
           <Text style={[m.cancelText, { color: colors.accent }]}>סגור</Text>
         </TouchableOpacity>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
@@ -571,7 +567,14 @@ function RequestCard({
     showConfirm(
       'ביטול בקשה',
       'האם לבטל את הבקשה?',
-      () => cancelRequest(req.id),
+      async () => {
+        try {
+          await cancelRequest(req.id);
+          haptics.warning();
+        } catch {
+          haptics.error();
+        }
+      },
       'כן, בטל',
       'לא',
       true
@@ -617,7 +620,7 @@ function RequestCard({
       {mode === 'owner' && req.status === 'open' && !isOwn && (
         canApprove
           ? (
-            <TouchableOpacity style={rc.approveBtn} onPress={onApprove} activeOpacity={0.85}>
+            <TouchableOpacity style={rc.approveBtn} onPress={onApprove} activeOpacity={0.7}>
               <Text style={rc.approveBtnText}>אשר — תן את החניה שלי</Text>
             </TouchableOpacity>
           ) : (
@@ -639,7 +642,7 @@ function RequestCard({
             </Text>
           </View>
           {req.status === 'approved' && !req.isGuest && (
-            <TouchableOpacity style={rc.confirmBtn} onPress={onConfirm} activeOpacity={0.85}>
+            <TouchableOpacity style={rc.confirmBtn} onPress={onConfirm} activeOpacity={0.7}>
               <Text style={rc.confirmBtnText}>הכנס מספר רכב</Text>
             </TouchableOpacity>
           )}
@@ -780,7 +783,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={s.requestBtn}
           onPress={() => navigation.navigate('Request')}
-          activeOpacity={0.9}
+          activeOpacity={0.7}
         >
           <Text style={s.requestBtnText}>+ בקש חניה</Text>
         </TouchableOpacity>
@@ -796,7 +799,7 @@ export default function HomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={s.alertBadge}
             onPress={() => setConfirmTarget(pendingConfirm)}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
           >
             <Text style={s.alertBadgeText}>🔔 אושרת!</Text>
           </TouchableOpacity>
@@ -816,7 +819,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[s.tab, tab === 'all' && s.tabActive]}
           onPress={() => setTab('all')}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           <Text style={[s.tabText, tab === 'all' && s.tabTextActive]}>
             {'בקשות' + (othersReqs.length > 0 ? ' (' + othersReqs.length + ')' : '')}
@@ -825,7 +828,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[s.tab, tab === 'mine' && s.tabActive]}
           onPress={() => setTab('mine')}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>
             {'ביקשתי' + (activeMyReqs.length > 0 ? ' (' + activeMyReqs.length + ')' : '')}
@@ -834,7 +837,7 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[s.tab, tab === 'gave' && s.tabActive]}
           onPress={() => setTab('gave')}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
           <Text style={[s.tabText, tab === 'gave' && s.tabTextActive]}>
             {'נתתי' + (myApprovals.length > 0 ? ' (' + myApprovals.length + ')' : '')}
@@ -848,14 +851,14 @@ export default function HomeScreen({ navigation }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 600); }}
+            onRefresh={() => { haptics.tap(); setRefreshing(true); setTimeout(() => setRefreshing(false), 600); }}
             tintColor={colors.accent}
           />
         }
         showsVerticalScrollIndicator={false}
       >
         {(l1 || l2 || l3) ? (
-          <View style={s.loader}><ActivityIndicator size="large" color={colors.accent} /></View>
+          <RequestListSkeleton count={3} />
         ) : tab === 'all' ? (
           <>
             {!profile?.ownedSpot && othersReqs.length > 0 && (
@@ -893,7 +896,7 @@ export default function HomeScreen({ navigation }: Props) {
           myApprovals.length === 0
             ? <Empty emoji="🤝" title="לא אישרת בקשות" sub="כשתאשר חניה למישהו, היא תופיע כאן" />
             : myApprovals.map((r) => (
-                <TouchableOpacity key={r.id} onPress={() => setGaveTarget(r)} activeOpacity={0.85}>
+                <TouchableOpacity key={r.id} onPress={() => setGaveTarget(r)} activeOpacity={0.7}>
                   <RequestCard req={r} mode="owner" canApprove={false} />
                 </TouchableOpacity>
               ))

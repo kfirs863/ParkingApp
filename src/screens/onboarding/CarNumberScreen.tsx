@@ -206,7 +206,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
           <TouchableOpacity
             style={[styles.toggleBtn, hasSpot === true && styles.toggleBtnActive]}
             onPress={() => { setHasSpot(true); }}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             <Text style={styles.toggleIcon}>✅</Text>
             <Text style={[styles.toggleText, hasSpot === true && styles.toggleTextActive]}>
@@ -217,7 +217,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
           <TouchableOpacity
             style={[styles.toggleBtn, hasSpot === false && styles.toggleBtnActive]}
             onPress={() => { setHasSpot(false); setSpotFloor(null); setSpotNumber(''); setSpotCheck({ status: 'idle' }); }}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             <Text style={styles.toggleIcon}>❌</Text>
             <Text style={[styles.toggleText, hasSpot === false && styles.toggleTextActive]}>
@@ -235,7 +235,7 @@ export default function CarNumberScreen({ navigation, route }: Props) {
                   key={f}
                   style={[styles.floorBtn, spotFloor === f && styles.floorBtnActive]}
                   onPress={() => handleFloorSelect(f)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.floorBtnText, spotFloor === f && styles.floorBtnTextActive]}>
                     {f}

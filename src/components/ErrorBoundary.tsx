@@ -33,7 +33,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           <TouchableOpacity
             style={styles.button}
             onPress={() => this.setState({ hasError: false })}
-            activeOpacity={0.85}
+            activeOpacity={0.7}
           >
             <Text style={styles.buttonText}>נסה שוב</Text>
           </TouchableOpacity>
