@@ -87,11 +87,12 @@ export function useMyRequests() {
   return { requests, loading };
 }
 
-export function useMyApprovals() {
+export function useMyApprovals(enabled: boolean = true) {
   const [requests, setRequests] = useState<ParkingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const uid = auth.currentUser?.uid ?? null;
   useEffect(() => {
+    if (!enabled) return;
     if (!uid) { setLoading(false); return; }
     const q = query(
       collection(db, 'parkingRequests'),
@@ -118,15 +119,16 @@ export function useMyApprovals() {
     // when a session's toTime passes while the screen is open.
     const tick = setInterval(publish, 60_000);
     return () => { unsub(); clearInterval(tick); };
-  }, [uid]);
+  }, [uid, enabled]);
   return { requests, loading };
 }
 
-export function useActiveParking() {
+export function useActiveParking(enabled: boolean = true) {
   const [session, setSession] = useState<ParkingRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const uid = auth.currentUser?.uid ?? null;
   useEffect(() => {
+    if (!enabled) return;
     if (!uid) { setLoading(false); return; }
 
     const isActive = (r: ParkingRequest) =>
@@ -174,7 +176,7 @@ export function useActiveParking() {
     });
 
     return () => { unsub1(); unsub2(); };
-  }, [uid]);
+  }, [uid, enabled]);
   return { session, loading };
 }
 

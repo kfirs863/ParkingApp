@@ -4,7 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator, Modal, Linking,
 } from 'react-native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useIsFocused } from '@react-navigation/native';
 import { MainTabParamList } from '../../navigation/MainNavigator';
 import { colors, spacing, radius, typography } from '../../theme';
 import {
@@ -718,11 +718,16 @@ const rc = StyleSheet.create({
 export default function HomeScreen({ navigation }: Props) {
   const route = useRoute<RouteProp<{ Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } }, 'Home'>>();
 
+  // Detach the heavier listeners when the user navigates to a different tab
+  // (Profile / Request). When they come back to Home, listeners reattach and
+  // the Firestore offline cache typically returns instant results.
+  const isFocused = useIsFocused();
+
   const { requests: openReqs, loading: l1 } = useOpenRequests();
   const { requests: myReqs, loading: l2 } = useMyRequests();
-  const { requests: myApprovals, loading: l3 } = useMyApprovals();
+  const { requests: myApprovals, loading: l3 } = useMyApprovals(isFocused);
   const { profile } = useUserProfile();
-  const { session: activeSession } = useActiveParking();
+  const { session: activeSession } = useActiveParking(isFocused);
   const [tab, setTab] = useState<'all' | 'mine' | 'gave'>('all');
   const [approveTarget, setApproveTarget] = useState<ParkingRequest | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ParkingRequest | null>(null);

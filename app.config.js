@@ -7,6 +7,7 @@ module.exports = {
     icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
     sdkVersion: "54.0.0",
+    jsEngine: "hermes",
     assetBundlePatterns: ["**/*"],
     ios: {
       supportsTablet: true,
