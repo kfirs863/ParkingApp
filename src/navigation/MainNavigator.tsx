@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { colors, spacing } from '../theme';
 import HomeScreen from '../screens/home/HomeScreen';
 import RequestScreen from '../screens/request/RequestScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import { ActiveSessionPill } from '../components/ActiveSessionPill';
 export type MainTabParamList = {
   Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } | undefined;
   Request: undefined;
@@ -36,33 +37,36 @@ export default function MainNavigator() {
   const tabBarHeight = 56;
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: {
-          backgroundColor: colors.bgCard,
-          borderTopColor: colors.border,
-          height: tabBarHeight + insets.bottom,
-          paddingBottom: insets.bottom,
-        },
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="ראשי" emoji="🅿️" focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="Request"
-        component={RequestScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="בקש חניה" emoji="🙋" focused={focused} /> }}
-      />
-<Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="פרופיל" emoji="👤" focused={focused} /> }}
-      />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: {
+            backgroundColor: colors.bgCard,
+            borderTopColor: colors.border,
+            height: tabBarHeight + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        }}
+      >
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon label="ראשי" emoji="🅿️" focused={focused} /> }}
+        />
+        <Tab.Screen
+          name="Request"
+          component={RequestScreen}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon label="בקש חניה" emoji="🙋" focused={focused} /> }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon label="פרופיל" emoji="👤" focused={focused} /> }}
+        />
+      </Tab.Navigator>
+      <ActiveSessionPill />
+    </View>
   );
 }

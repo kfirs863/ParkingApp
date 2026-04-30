@@ -10,6 +10,7 @@ import { colors, spacing, radius, typography } from '../../theme';
 import {
   useOpenRequests, useMyRequests, useMyApprovals,
   approveRequest, cancelApproval, confirmParking, cancelRequest, completeParking,
+  pingParker, thankOwner,
   formatTimeRange, durationLabel, timeUntil, statusMeta,
   ParkingRequest,
 } from '../../hooks/useParking';
@@ -368,6 +369,10 @@ function ActiveSessionModal({
   onClose: () => void;
   isOwner: boolean;
 }) {
+  const [thanked, setThanked] = useState(false);
+  // Reset thanked-state whenever a different session is shown
+  useEffect(() => { setThanked(false); }, [session?.id]);
+
   if (!session) return null;
 
   const otherName    = isOwner ? session.requesterName    : session.ownerName;
@@ -405,6 +410,29 @@ function ActiveSessionModal({
           </View>
         )}
 
+        {isOwner && (
+          <TouchableOpacity
+            style={as.softBtn}
+            activeOpacity={0.7}
+            onPress={async () => {
+              try {
+                await pingParker(session);
+                haptics.success();
+                showAlert('נשלחה תזכורת', `${otherName} יקבל/ת התראה לחזור לחניה.`);
+              } catch (e: any) {
+                haptics.error();
+                if (e instanceof TimeoutError) {
+                  showAlert('בעיית תקשורת', 'התזכורת לא נשלחה — נסה/י שוב.');
+                } else {
+                  showAlert('שגיאה', 'לא ניתן לשלוח תזכורת כעת.');
+                }
+              }
+            }}
+          >
+            <Text style={as.softBtnText}>🔔 שלח/י תזכורת לחונה</Text>
+          </TouchableOpacity>
+        )}
+
         {isOwner && otherPhone ? (
           <TouchableOpacity
             style={as.urgentBtn}
@@ -416,9 +444,35 @@ function ActiveSessionModal({
               );
             }}
           >
-            <Text style={as.urgentBtnText}>🚨 בקש לפנות את החניה בדחיפות</Text>
+            <Text style={as.urgentBtnText}>🚨 בקש/י בוואטסאפ לפנות את החניה</Text>
           </TouchableOpacity>
         ) : null}
+
+        {!isOwner && (
+          <TouchableOpacity
+            style={[as.softBtn, thanked && { opacity: 0.5 }]}
+            activeOpacity={0.7}
+            disabled={thanked}
+            onPress={async () => {
+              try {
+                await thankOwner(session);
+                setThanked(true);
+                haptics.success();
+              } catch (e: any) {
+                haptics.error();
+                if (e instanceof TimeoutError) {
+                  showAlert('בעיית תקשורת', 'התודה לא נשלחה — נסה/י שוב.');
+                } else {
+                  showAlert('שגיאה', 'לא ניתן לשלוח תודה כעת.');
+                }
+              }
+            }}
+          >
+            <Text style={as.softBtnText}>
+              {thanked ? '✓ נשלחה תודה' : '🙏 שלח/י תודה ל' + otherName}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {!isOwner && (
           <TouchableOpacity
@@ -477,6 +531,11 @@ const as = StyleSheet.create({
     borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginBottom: spacing.md,
   },
   urgentBtnText: { ...typography.body, color: colors.error, fontWeight: '700' },
+  softBtn: {
+    backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '60',
+    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginBottom: spacing.md,
+  },
+  softBtnText: { ...typography.body, color: colors.accent, fontWeight: '700' },
 });
 
 // ─── Helper ───────────────────────────────────────────────
@@ -617,17 +676,10 @@ function RequestCard({
         </View>
       )}
 
-      {mode === 'owner' && req.status === 'open' && !isOwn && (
-        canApprove
-          ? (
-            <TouchableOpacity style={rc.approveBtn} onPress={onApprove} activeOpacity={0.7}>
-              <Text style={rc.approveBtnText}>אשר — תן את החניה שלי</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={rc.noSpotNote}>
-              <Text style={rc.noSpotNoteText}>אין לך חניה רשומה — לא ניתן לאשר</Text>
-            </View>
-          )
+      {mode === 'owner' && req.status === 'open' && !isOwn && canApprove && (
+        <TouchableOpacity style={rc.approveBtn} onPress={onApprove} activeOpacity={0.7}>
+          <Text style={rc.approveBtnText}>אשר — תן את החניה שלי</Text>
+        </TouchableOpacity>
       )}
 
       {mode === 'owner' && req.status === 'approved' && req.ownerId === uid && (
@@ -705,16 +757,6 @@ const rc = StyleSheet.create({
   },
   confirmBtnText: { ...typography.caption, color: colors.success, fontWeight: '700' },
   cancelText: { ...typography.caption, color: colors.textMuted },
-  noSpotNote: {
-    backgroundColor: colors.bgInput,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  noSpotNoteText: { ...typography.caption, color: colors.textMuted },
 });
 
 // ─── HomeScreen ───────────────────────────────────────────
@@ -861,12 +903,18 @@ export default function HomeScreen({ navigation }: Props) {
           <RequestListSkeleton count={3} />
         ) : tab === 'all' ? (
           <>
-            {!profile?.ownedSpot && othersReqs.length > 0 && (
-              <View style={s.noSpotBanner}>
-                <Text style={s.noSpotBannerText}>
-                  👀 אתה רואה את הבקשות הפתוחות, אך לא ניתן לאשר אותן ללא חניה רשומה בפרופיל
+            {!profile?.ownedSpot && (
+              <TouchableOpacity
+                style={s.noSpotCta}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Profile' as never)}
+              >
+                <Text style={s.noSpotCtaTitle}>אין לך חניה רשומה</Text>
+                <Text style={s.noSpotCtaSub}>
+                  הוסף/י חניה לפרופיל כדי לאשר בקשות. בינתיים — צריך/ה חניה?{' '}
+                  <Text style={s.noSpotCtaLink}>שלח/י בקשה</Text>
                 </Text>
-              </View>
+              </TouchableOpacity>
             )}
             {profile?.ownedSpot && myApprovals.length > 0 && (
               <View style={s.noSpotBanner}>
@@ -982,4 +1030,19 @@ const s = StyleSheet.create({
     borderColor: colors.border,
   },
   noSpotBannerText: { ...typography.caption, color: colors.textSecondary, textAlign: 'right', lineHeight: 18 },
+  noSpotCta: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accent + '40',
+  },
+  noSpotCtaTitle: {
+    ...typography.subtitle, color: colors.textPrimary, textAlign: 'right', marginBottom: 4,
+  },
+  noSpotCtaSub: {
+    ...typography.caption, color: colors.textSecondary, textAlign: 'right', lineHeight: 18,
+  },
+  noSpotCtaLink: { color: colors.accent, fontWeight: '700' },
 });

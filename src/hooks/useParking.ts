@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   collection, query, where, onSnapshot,
   addDoc, updateDoc, doc, getDocs, serverTimestamp,
-  orderBy, Timestamp, runTransaction, getDoc, limit,
+  orderBy, Timestamp, runTransaction, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { withTimeout } from '../utils/withTimeout';
@@ -121,6 +121,72 @@ export function useMyApprovals(enabled: boolean = true) {
     return () => { unsub(); clearInterval(tick); };
   }, [uid, enabled]);
   return { requests, loading };
+}
+
+/**
+ * Read-only history of past parkings the user took part in — as requester or
+ * as owner. Lazily fires two queries (one per role) only when `enabled` is
+ * true, and merges + sorts by `createdAt`. Cancelled / expired / completed
+ * are all included; the History UI groups by month.
+ */
+export type HistoryRole = 'requester' | 'owner';
+export interface HistoryItem extends ParkingRequest {
+  role: HistoryRole;
+}
+
+export function useMyHistory(enabled: boolean = true) {
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
+  useEffect(() => {
+    if (!enabled) return;
+    if (!uid) { setLoading(false); setItems([]); return; }
+
+    let asRequester: HistoryItem[] = [];
+    let asOwner: HistoryItem[] = [];
+    let requesterReady = false;
+    let ownerReady = false;
+
+    const publish = () => {
+      const merged = [...asRequester, ...asOwner].sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+      );
+      setItems(merged);
+      if (requesterReady && ownerReady) setLoading(false);
+    };
+
+    const closedStatuses = ['completed', 'expired', 'cancelled'];
+
+    const qReq = query(
+      collection(db, 'parkingRequests'),
+      where('requesterId', '==', uid),
+      where('status', 'in', closedStatuses),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    const qOwn = query(
+      collection(db, 'parkingRequests'),
+      where('ownerId', '==', uid),
+      where('status', 'in', closedStatuses),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+
+    const u1 = onSnapshot(qReq, (snap) => {
+      asRequester = snap.docs.map((d) => ({ ...toRequest(d), role: 'requester' as const }));
+      requesterReady = true;
+      publish();
+    }, (err) => { console.error('History (requester) error:', err); requesterReady = true; publish(); });
+
+    const u2 = onSnapshot(qOwn, (snap) => {
+      asOwner = snap.docs.map((d) => ({ ...toRequest(d), role: 'owner' as const }));
+      ownerReady = true;
+      publish();
+    }, (err) => { console.error('History (owner) error:', err); ownerReady = true; publish(); });
+
+    return () => { u1(); u2(); };
+  }, [uid, enabled]);
+  return { items, loading };
 }
 
 export function useActiveParking(enabled: boolean = true) {
@@ -316,6 +382,37 @@ export async function completeParking(requestId: string): Promise<void> {
   await withTimeout(updateDoc(doc(db, 'parkingRequests', requestId), {
     status: 'completed',
     completedAt: serverTimestamp(),
+  }));
+}
+
+/** Owner pings the requester to remind them their window is ending.
+ * Server enforces a 5-min rate limit and forwards as a push notification. */
+export async function pingParker(req: ParkingRequest): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+  if (req.ownerId !== user.uid) throw new Error('NOT_OWNER');
+  await withTimeout(addDoc(collection(db, 'parkingPings'), {
+    fromUid: user.uid,
+    toUid: req.requesterId,
+    requestId: req.id,
+    spotNumber: req.spotNumber ?? '',
+    toTime: Timestamp.fromDate(req.toTime),
+    createdAt: serverTimestamp(),
+  }));
+}
+
+/** Requester thanks the spot owner after a completed session.
+ * Server-side trigger increments `users/{ownerId}.thanksCount`. */
+export async function thankOwner(req: ParkingRequest): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+  if (req.requesterId !== user.uid) throw new Error('NOT_REQUESTER');
+  if (!req.ownerId) throw new Error('NO_OWNER');
+  await withTimeout(addDoc(collection(db, 'thanks'), {
+    fromUid: user.uid,
+    toUid: req.ownerId,
+    requestId: req.id,
+    createdAt: serverTimestamp(),
   }));
 }
 

@@ -14,7 +14,8 @@ import {
   useMyAvailabilityRules, createAvailabilityRule, updateAvailabilityRule,
   deleteAvailabilityRule, AvailabilityRule,
 } from '../../hooks/useAvailabilityRules';
-import { durationLabel } from '../../hooks/useParking';
+import { durationLabel, useMyHistory, formatTimeRange, statusMeta, HistoryItem } from '../../hooks/useParking';
+import { useIsFocused } from '@react-navigation/native';
 import { showAlert, showConfirm } from '../../utils/alert';
 
 export default function ProfileScreen() {
@@ -300,15 +301,49 @@ export default function ProfileScreen() {
         <SectionTitle>התראות</SectionTitle>
         <View style={s.prefRow}>
           <View style={s.prefInfo}>
-            <Text style={s.prefLabel}>התראות כלליות</Text>
-            <Text style={s.prefDesc}>קבל התראה כשמישהו מחפש חניה (גם ללא חלון זמינות)</Text>
+            <Text style={s.prefLabel}>בקשות חניה חדשות</Text>
+            <Text style={s.prefDesc}>קבל/י התראה כשמישהו בבניין מחפש חניה</Text>
           </View>
           <Switch
-            value={(profile as any)?.pushGeneral !== false}
+            value={(profile as any)?.pushBroadcast !== false && (profile as any)?.pushGeneral !== false}
             onValueChange={async (val) => {
               const uid = auth.currentUser?.uid;
               if (!uid) return;
-              await updateDoc(doc(db, 'users', uid), { pushGeneral: val });
+              // Keep pushGeneral synced for backward compat with existing
+              // backend code that still reads it.
+              await updateDoc(doc(db, 'users', uid), { pushBroadcast: val, pushGeneral: val });
+            }}
+            trackColor={{ true: colors.accent, false: colors.border }}
+            thumbColor={colors.textPrimary}
+          />
+        </View>
+        <View style={s.prefRow}>
+          <View style={s.prefInfo}>
+            <Text style={s.prefLabel}>אירועים על הבקשות שלי</Text>
+            <Text style={s.prefDesc}>אישור, ביטול, סיום — אירועים שקשורים אליך אישית</Text>
+          </View>
+          <Switch
+            value={(profile as any)?.pushMyEvents !== false}
+            onValueChange={async (val) => {
+              const uid = auth.currentUser?.uid;
+              if (!uid) return;
+              await updateDoc(doc(db, 'users', uid), { pushMyEvents: val });
+            }}
+            trackColor={{ true: colors.accent, false: colors.border }}
+            thumbColor={colors.textPrimary}
+          />
+        </View>
+        <View style={s.prefRow}>
+          <View style={s.prefInfo}>
+            <Text style={s.prefLabel}>תזכורות ותודות</Text>
+            <Text style={s.prefDesc}>תזכורת לפנות חניה, או הודעת תודה ממישהו</Text>
+          </View>
+          <Switch
+            value={(profile as any)?.pushReminders !== false}
+            onValueChange={async (val) => {
+              const uid = auth.currentUser?.uid;
+              if (!uid) return;
+              await updateDoc(doc(db, 'users', uid), { pushReminders: val });
             }}
             trackColor={{ true: colors.accent, false: colors.border }}
             thumbColor={colors.textPrimary}
@@ -323,6 +358,8 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <Text style={s.readOnlyHint}>לשינוי מספר טלפון יש להתקין מחדש את האפליקציה</Text>
+
+        <HistorySection />
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
@@ -925,6 +962,99 @@ const ss = StyleSheet.create({
 function SectionTitle({ children }: { children: string }) {
   return <Text style={st.title}>{children}</Text>;
 }
+
+// ─── History ─────────────────────────────────────────────
+// Read-only list of past parkings, grouped by month. Listeners attach only
+// while the Profile tab is focused (Firestore reads aren't free).
+function HistorySection() {
+  const focused = useIsFocused();
+  const { items, loading } = useMyHistory(focused);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!loading && items.length === 0) return null;
+
+  const groups = groupByMonth(items);
+  const visibleGroups = expanded ? groups : groups.slice(0, 1);
+
+  return (
+    <>
+      <SectionTitle>היסטוריה</SectionTitle>
+      {loading ? (
+        <Text style={hs.empty}>טוען היסטוריה…</Text>
+      ) : (
+        <View>
+          {visibleGroups.map(([label, rows]) => (
+            <View key={label} style={hs.group}>
+              <Text style={hs.groupLabel}>{label}</Text>
+              {rows.map((r) => <HistoryRow key={r.id} item={r} />)}
+            </View>
+          ))}
+          {groups.length > 1 && (
+            <TouchableOpacity onPress={() => setExpanded(!expanded)} style={hs.expandBtn} activeOpacity={0.7}>
+              <Text style={hs.expandBtnText}>
+                {expanded ? 'הסתר היסטוריה ישנה' : `הצג עוד (${groups.length - 1} חודשים)`}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </>
+  );
+}
+
+function HistoryRow({ item }: { item: HistoryItem }) {
+  const status = statusMeta(item.status);
+  const otherName = item.role === 'requester' ? item.ownerName : item.requesterName;
+  const roleLabel = item.role === 'requester' ? 'ביקשתי מ' : 'נתתי ל';
+  return (
+    <View style={hs.row}>
+      <View style={[hs.statusDot, { backgroundColor: status.color }]} />
+      <View style={hs.rowMain}>
+        <Text style={hs.rowTitle} numberOfLines={1}>
+          {roleLabel}{otherName ?? '—'}{item.spotNumber ? ` · חניה ${item.spotNumber}` : ''}
+        </Text>
+        <Text style={hs.rowSub} numberOfLines={1}>
+          {formatTimeRange(item.fromTime, item.toTime)}
+        </Text>
+      </View>
+      <Text style={[hs.rowStatus, { color: status.color }]}>{status.text}</Text>
+    </View>
+  );
+}
+
+function groupByMonth(items: HistoryItem[]): Array<[string, HistoryItem[]]> {
+  const fmt = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' });
+  const map = new Map<string, HistoryItem[]>();
+  for (const it of items) {
+    const key = fmt.format(it.createdAt);
+    const arr = map.get(key) ?? [];
+    arr.push(it);
+    map.set(key, arr);
+  }
+  return Array.from(map.entries());
+}
+
+const hs = StyleSheet.create({
+  empty: { ...typography.caption, color: colors.textMuted, textAlign: 'right', marginBottom: spacing.md },
+  group: { marginBottom: spacing.md },
+  groupLabel: {
+    ...typography.label, color: colors.textMuted, textAlign: 'right',
+    marginBottom: spacing.xs, textTransform: 'none',
+  },
+  row: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm,
+    padding: spacing.sm, backgroundColor: colors.bgCard,
+    borderRadius: radius.md, marginBottom: 6,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  rowMain: { flex: 1, alignItems: 'flex-end' },
+  rowTitle: { ...typography.body, color: colors.textPrimary, textAlign: 'right' },
+  rowSub: { ...typography.caption, color: colors.textSecondary, textAlign: 'right' },
+  rowStatus: { ...typography.caption, fontWeight: '700' },
+  expandBtn: { paddingVertical: spacing.sm, alignItems: 'center' },
+  expandBtnText: { ...typography.caption, color: colors.accent, fontWeight: '700' },
+});
 
 const st = StyleSheet.create({
   title: {

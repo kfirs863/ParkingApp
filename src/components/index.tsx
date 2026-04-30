@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   inputRowFocused: { borderColor: colors.borderFocus, backgroundColor: colors.bgInputFocus },
   inputRowError: { borderColor: colors.error },
-  inputPrefix: { ...typography.body, color: colors.textSecondary, marginRight: spacing.sm },
+  inputPrefix: { ...typography.body, color: colors.textSecondary, marginEnd: spacing.sm },
   input: {
     flex: 1,
     height: 52,
