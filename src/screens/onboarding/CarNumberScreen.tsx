@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -304,7 +304,10 @@ const st = StyleSheet.create({
 
 const styles = StyleSheet.create({
   scrollView: { flex: 1 },
-  scroll: { paddingBottom: spacing.xl },
+  // iOS browser toolbar + home indicator eat the bottom of the viewport.
+  // 120 keeps the final continue-button reachable; native uses the native
+  // safe-area handling so spacing.xl is fine there.
+  scroll: { paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'right', marginBottom: spacing.sm },
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing.xl },
 

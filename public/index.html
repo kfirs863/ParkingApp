@@ -41,10 +41,18 @@
         overflow: hidden;
       }
       #root {
+        /* Dynamic viewport height: shrinks when iOS browser toolbar is visible.
+           Fallback chain: 100% (legacy) → -webkit-fill-available (older iOS)
+           → 100dvh (modern). Order matters — last supported value wins. */
         height: 100%;
+        height: -webkit-fill-available;
+        height: 100dvh;
         display: flex;
         flex-direction: column;
         background-color: #0a0a0f;
+        /* Respect the iPhone home indicator so bottom-anchored UI clears it. */
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-sizing: border-box;
       }
       /* Hide scrollbar globally */
       ::-webkit-scrollbar {

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Platform,
   TextInputProps,
   ViewStyle,
 } from 'react-native';
@@ -275,6 +276,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     paddingHorizontal: spacing.lg,
     paddingTop: 60,
-    paddingBottom: 32,
+    // On iOS browser the dynamic toolbar + home indicator eat the bottom
+    // of the viewport. 100px clears both; native uses safe-area-inset
+    // higher up the tree so 32 is fine.
+    paddingBottom: Platform.OS === 'web' ? 100 : 32,
   },
 });
