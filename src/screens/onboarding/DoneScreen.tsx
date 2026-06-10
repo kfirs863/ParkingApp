@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell } from '../../components';
@@ -28,52 +28,58 @@ export default function DoneScreen({ navigation }: Props) {
 
   return (
     <ScreenShell>
-      <View style={styles.center}>
-        <Animated.View style={[styles.checkWrap, { transform: [{ scale }] }]}>
-          <Text style={styles.checkMark}>✓</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.center}>
+          <Animated.View style={[styles.checkWrap, { transform: [{ scale }] }]}>
+            <Text style={styles.checkMark}>✓</Text>
+          </Animated.View>
+
+          <Animated.View style={{ opacity: fade }}>
+            <Text style={styles.title}>ברוך הבא לחניון!</Text>
+            <Text style={styles.sub}>
+              הפרופיל שלך נוצר בהצלחה.{'\n'}
+              עכשיו תוכל לשתף ולבקש חניות מהשכנים.
+            </Text>
+
+            <View style={styles.tips}>
+              {[
+                { emoji: '🙋', text: 'לחץ על "בקש חניה" כשאתה צריך מקום' },
+                { emoji: '🔔', text: 'תקבל התראה כשמישהו מאשר את הבקשה שלך' },
+                { emoji: '🅿️', text: 'יש לך חניה? תוכל לאשר בקשות של שכנים' },
+              ].map(({ emoji, text }) => (
+                <View key={text} style={styles.tip}>
+                  <Text style={styles.tipEmoji}>{emoji}</Text>
+                  <Text style={styles.tipText}>{text}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </View>
+
+        <Animated.View style={{ opacity: fade, marginTop: spacing.xl }}>
+          <Button
+            label="כניסה לאפליקציה 🚀"
+            onPress={async () => {
+              // App.tsx switches to the main stack from an onSnapshot listener
+              // on users/{uid}. If that fires reliably the user never sees this
+              // button. If the listener has stalled (transient connectivity),
+              // a manual getDoc nudges Firestore's local cache and re-emits.
+              const uid = auth.currentUser?.uid;
+              if (!uid) return;
+              try { await getDoc(doc(db, 'users', uid)); } catch {}
+            }}
+          />
         </Animated.View>
-
-        <Animated.View style={{ opacity: fade }}>
-          <Text style={styles.title}>ברוך הבא לחניון!</Text>
-          <Text style={styles.sub}>
-            הפרופיל שלך נוצר בהצלחה.{'\n'}
-            עכשיו תוכל לשתף ולבקש חניות מהשכנים.
-          </Text>
-
-          <View style={styles.tips}>
-            {[
-              { emoji: '🙋', text: 'לחץ על "בקש חניה" כשאתה צריך מקום' },
-              { emoji: '🔔', text: 'תקבל התראה כשמישהו מאשר את הבקשה שלך' },
-              { emoji: '🅿️', text: 'יש לך חניה? תוכל לאשר בקשות של שכנים' },
-            ].map(({ emoji, text }) => (
-              <View key={text} style={styles.tip}>
-                <Text style={styles.tipEmoji}>{emoji}</Text>
-                <Text style={styles.tipText}>{text}</Text>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-      </View>
-
-      <Animated.View style={{ opacity: fade }}>
-        <Button
-          label="כניסה לאפליקציה 🚀"
-          onPress={async () => {
-            // App.tsx switches to the main stack from an onSnapshot listener
-            // on users/{uid}. If that fires reliably the user never sees this
-            // button. If the listener has stalled (transient connectivity),
-            // a manual getDoc nudges Firestore's local cache and re-emits.
-            const uid = auth.currentUser?.uid;
-            if (!uid) return;
-            try { await getDoc(doc(db, 'users', uid)); } catch {}
-          }}
-        />
-      </Animated.View>
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 1, paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   checkWrap: {

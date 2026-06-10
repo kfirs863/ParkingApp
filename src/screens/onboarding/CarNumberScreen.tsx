@@ -269,15 +269,17 @@ export default function CarNumberScreen({ navigation, route }: Props) {
             </Text>
           </View>
         )}
-      </ScrollView>
 
-      <Button
-        label="סיים הרשמה"
-        onPress={handleFinish}
-        loading={loading}
-        disabled={!canFinish}
-        style={styles.cta}
-      />
+        {/* CTA lives INSIDE the scroll so it stays reachable even if the
+            viewport height calculation is wrong (iOS Chrome 100dvh bug). */}
+        <Button
+          label="סיים הרשמה"
+          onPress={handleFinish}
+          loading={loading}
+          disabled={!canFinish}
+          style={styles.cta}
+        />
+      </ScrollView>
     </ScreenShell>
   );
 }
@@ -367,5 +369,5 @@ const styles = StyleSheet.create({
   },
   noSpotText: { ...typography.body, color: colors.textSecondary, textAlign: 'right' },
 
-  cta: { marginTop: spacing.md },
+  cta: { marginTop: spacing.xl },
 });

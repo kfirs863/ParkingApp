@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, Input, ScreenShell, StepIndicator } from '../../components';
@@ -27,56 +27,63 @@ export default function ProfileScreen({ navigation }: Props) {
   return (
     <ScreenShell>
       <StepIndicator total={4} current={2} />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>ספר לנו עליך</Text>
+        <Text style={styles.sub}>פרטים אלה יופיעו בפרופיל שלך</Text>
 
-      <Text style={styles.title}>ספר לנו עליך</Text>
-      <Text style={styles.sub}>פרטים אלה יופיעו בפרופיל שלך</Text>
+        <View style={styles.form}>
+          <Input
+            label="שם מלא"
+            value={name}
+            onChangeText={setName}
+            placeholder="ישראל ישראלי"
+            textAlign="right"
+            autoCapitalize="words"
+          />
 
-      <View style={styles.form}>
-        <Input
-          label="שם מלא"
-          value={name}
-          onChangeText={setName}
-          placeholder="ישראל ישראלי"
-          textAlign="right"
-          autoCapitalize="words"
-        />
+          {/* Tower Selector */}
+          <Text style={styles.sectionLabel}>מגדל</Text>
+          <View style={styles.toggleRow}>
+            {(['1', '2'] as const).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.toggleBtn, tower === t && styles.toggleBtnActive]}
+                onPress={() => setTower(t)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.toggleText, tower === t && styles.toggleTextActive]}>
+                  {towerLabel(t)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        {/* Tower Selector */}
-        <Text style={styles.sectionLabel}>מגדל</Text>
-        <View style={styles.toggleRow}>
-          {(['1', '2'] as const).map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.toggleBtn, tower === t && styles.toggleBtnActive]}
-              onPress={() => setTower(t)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.toggleText, tower === t && styles.toggleTextActive]}>
-                {towerLabel(t)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <Input
+            label="מספר דירה"
+            value={apartment}
+            onChangeText={setApartment}
+            placeholder="לדוגמה: 45"
+            keyboardType="numeric"
+            textAlign="right"
+          />
         </View>
 
-        <Input
-          label="מספר דירה"
-          value={apartment}
-          onChangeText={setApartment}
-          placeholder="לדוגמה: 45"
-          keyboardType="numeric"
-          textAlign="right"
-        />
-      </View>
-
-      <Button label="המשך" onPress={handleNext} disabled={!isValid} />
+        <Button label="המשך" onPress={handleNext} disabled={!isValid} style={styles.cta} />
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 1, paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'right', marginBottom: spacing.sm },
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing.xl },
-  form: { flex: 1, gap: spacing.xs },
+  form: { gap: spacing.xs },
+  cta: { marginTop: spacing.xl },
 
   sectionLabel: {
     ...typography.label,

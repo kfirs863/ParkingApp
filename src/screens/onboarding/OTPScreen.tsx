@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -78,6 +78,11 @@ export default function OTPScreen({ navigation, route }: Props) {
     <ScreenShell>
       <StepIndicator total={4} current={1} />
 
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <Text style={styles.title}>הכנס קוד אימות</Text>
       <Text style={styles.sub}>
         שלחנו קוד בן 6 ספרות למספר{'\n'}
@@ -148,17 +153,19 @@ export default function OTPScreen({ navigation, route }: Props) {
         </Text>
       </TouchableOpacity>
 
-      <View style={styles.bottom}>
-        <Button label="אמת קוד" onPress={handleVerify} loading={loading} disabled={!isComplete} />
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-          <Text style={styles.backText}>← שנה מספר</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.bottom}>
+          <Button label="אמת קוד" onPress={handleVerify} loading={loading} disabled={!isComplete} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+            <Text style={styles.backText}>← שנה מספר</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 1, paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'right', marginBottom: spacing.sm },
   sub: { ...typography.body, color: colors.textSecondary, textAlign: 'right', marginBottom: spacing.xl, lineHeight: 24 },
   phone: { color: colors.accent, fontWeight: '700' },

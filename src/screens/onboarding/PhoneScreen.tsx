@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { sendOTP } from '../../config/firebase';
 import { colors } from '../../theme';
@@ -57,7 +58,11 @@ export default function PhoneScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>מה המספר שלך?</Text>
         <Text style={styles.subtitle}>נשלח לך קוד אימות ב-SMS</Text>
 
@@ -83,7 +88,7 @@ export default function PhoneScreen({ navigation }: any) {
             : <Text style={styles.buttonText}>שלח קוד</Text>
           }
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -94,10 +99,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: Platform.OS === 'web' ? 120 : 24,
   },
   title: {
     fontSize: 28,
