@@ -122,6 +122,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 24,
     textAlign: 'right',
+    // Force LTR so 0501234567 is stored in that order on web (RTL
+    // document inverts digit insertion on iOS WebKit).
+    writingDirection: 'ltr',
   },
   button: {
     width: '100%',

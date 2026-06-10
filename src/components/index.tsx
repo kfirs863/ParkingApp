@@ -63,6 +63,15 @@ interface InputProps extends TextInputProps {
 
 export const Input: React.FC<InputProps> = ({ label, error, prefix, style, ...props }) => {
   const [focused, setFocused] = React.useState(false);
+  // The document is RTL (Hebrew app). For numeric inputs, iOS WebKit
+  // inserts new characters at the logical *start* of the value — so
+  // typing 12345 stores "54321". Force LTR on number-pad / numeric /
+  // phone-pad inputs so digits are stored in the order they were typed.
+  const isNumeric =
+    props.keyboardType === 'numeric' ||
+    props.keyboardType === 'number-pad' ||
+    props.keyboardType === 'phone-pad' ||
+    props.keyboardType === 'decimal-pad';
   return (
     <View style={styles.inputWrapper}>
       {label && <Text style={styles.inputLabel}>{label}</Text>}
@@ -75,7 +84,7 @@ export const Input: React.FC<InputProps> = ({ label, error, prefix, style, ...pr
       >
         {prefix && <Text style={styles.inputPrefix}>{prefix}</Text>}
         <TextInput
-          style={[styles.input, style]}
+          style={[styles.input, isNumeric && styles.inputNumeric, style]}
           placeholderTextColor={colors.textMuted}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -256,6 +265,11 @@ const styles = StyleSheet.create({
     height: 52,
     ...typography.body,
     color: colors.textPrimary,
+  },
+  inputNumeric: {
+    // Auto-applied when keyboardType is numeric/number-pad/phone-pad/decimal-pad.
+    // See Input component for rationale.
+    writingDirection: 'ltr',
   },
   inputError: { ...typography.caption, color: colors.error, marginTop: spacing.xs },
 

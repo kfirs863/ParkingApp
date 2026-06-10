@@ -39,7 +39,14 @@ export default function OTPScreen({ navigation, route }: Props) {
   }, [countdown]);
 
   const handleChange = (text: string) => {
-    const digits = toLatinDigit(text).replace(/\D/g, '').slice(0, CODE_LENGTH);
+    // Strip Unicode bidi control marks that iOS WebKit can inject into
+    // RTL-direction text inputs. Without this, an LRM/RLM hiding in the
+    // value collapses to an invisible char inside the digits string and
+    // breaks the length check.
+    const digits = toLatinDigit(text)
+      .replace(/[‎‏‪-‮⁦-⁩]/g, '')
+      .replace(/\D/g, '')
+      .slice(0, CODE_LENGTH);
     setCode(digits);
   };
 
@@ -161,6 +168,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    // Force LTR so box index 0 (first digit) is on the LEFT, matching the
+    // order the digits appear in the SMS. The document is RTL because the
+    // app is Hebrew, but the code itself reads left-to-right.
+    direction: 'ltr',
   },
   codeBox: {
     width: 48,
@@ -193,6 +204,10 @@ const styles = StyleSheet.create({
     width: 1,
     height: 1,
     opacity: 0,
+    // Force LTR so digits are appended (not prepended) in RTL documents.
+    // Without this, typing 12345 stores "54321" on iOS web browsers.
+    writingDirection: 'ltr',
+    textAlign: 'left',
   },
 
   errorText: {
