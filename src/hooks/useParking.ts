@@ -123,6 +123,112 @@ export function useMyApprovals(enabled: boolean = true) {
   return { requests, loading };
 }
 
+// ─── Marketplace: available windows offered by spot owners ────
+
+export interface AvailabilityWindow {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  ownerApartment: string;
+  ownerTower: string;
+  spotNumber: string;
+  fromTime: Date;
+  toTime: Date;
+  status: 'active' | 'claimed' | 'cancelled';
+  claimedBy?: string;
+}
+
+function toWindow(d: any): AvailabilityWindow {
+  const data = d.data();
+  return {
+    id: d.id,
+    ownerId: data.ownerId,
+    ownerName: data.ownerName ?? '',
+    ownerApartment: data.ownerApartment ?? '',
+    ownerTower: data.ownerTower ?? '',
+    spotNumber: data.spotNumber ?? '',
+    fromTime: data.fromTime?.toDate?.() ?? new Date(0),
+    toTime: data.toTime?.toDate?.() ?? new Date(0),
+    status: data.status ?? 'active',
+    claimedBy: data.claimedBy ?? undefined,
+  };
+}
+
+/** Live list of available windows: status=active, toTime in the future,
+ * not offered by the current user. Ordered by start time. */
+export function useAvailableWindows(enabled: boolean = true) {
+  const [windows, setWindows] = useState<AvailabilityWindow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!uid) { setLoading(false); setWindows([]); return; }
+
+    const q = query(
+      collection(db, 'spotAvailability'),
+      where('status', '==', 'active'),
+      where('toTime', '>', Timestamp.now()),
+      orderBy('toTime', 'asc'),
+      limit(50)
+    );
+    return onSnapshot(q, (snap) => {
+      setWindows(
+        snap.docs
+          .map(toWindow)
+          .filter((w) => w.ownerId !== uid)
+      );
+      setLoading(false);
+    }, (err) => {
+      console.error('Available windows snapshot error:', err);
+      setLoading(false);
+    });
+  }, [uid, enabled]);
+
+  return { windows, loading };
+}
+
+/**
+ * Send a directed parking request targeting a specific owner's published
+ * availability window. Reuses the existing 'open' → 'approved' → 'confirmed'
+ * flow; the only difference vs createRequest is the `targetOwnerId` field,
+ * which the broadcast Cloud Function uses to send the notification *only*
+ * to that owner instead of fanning out to the building.
+ */
+export async function requestAvailabilityWindow(
+  window: AvailabilityWindow,
+  requester: { name: string; apartment: string; tower: string }
+): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+
+  // Same duplicate-guard semantics as createRequest.
+  const existing = await withTimeout(getDocs(query(
+    collection(db, 'parkingRequests'),
+    where('requesterId', '==', user.uid),
+    where('status', 'in', ['open', 'approved']),
+    where('toTime', '>', Timestamp.now())
+  )));
+  if (!existing.empty) throw new Error('DUPLICATE_REQUEST');
+
+  const ref = await withTimeout(addDoc(collection(db, 'parkingRequests'), {
+    requesterId: user.uid,
+    requesterName: requester.name,
+    requesterApartment: requester.apartment,
+    requesterTower: requester.tower,
+    requesterPhone: user.phoneNumber ?? '',
+    fromTime: Timestamp.fromDate(window.fromTime),
+    toTime: Timestamp.fromDate(window.toTime),
+    status: 'open',
+    isGuest: false,
+    targetOwnerId: window.ownerId,
+    targetSpotNumber: window.spotNumber,
+    targetAvailabilityId: window.id,
+    createdAt: serverTimestamp(),
+  }));
+  return ref.id;
+}
+
 /**
  * Read-only history of past parkings the user took part in — as requester or
  * as owner. Lazily fires two queries (one per role) only when `enabled` is
@@ -187,6 +293,61 @@ export function useMyHistory(enabled: boolean = true) {
     return () => { u1(); u2(); };
   }, [uid, enabled]);
   return { items, loading };
+}
+
+/**
+ * Counts the historical parkings exchanged between the current user and the
+ * other party identified by `otherUid`. Returns:
+ *   - given: how many times current user (as owner) gave to otherUid
+ *   - received: how many times otherUid (as owner) gave to current user
+ *
+ * Closed statuses only ('completed' | 'expired' | 'cancelled' filtered to
+ * 'confirmed-then-completed' so we count *actual* parkings not no-shows).
+ * Lazily loaded — set `enabled` from screen visibility to avoid background reads.
+ */
+export function useReciprocity(otherUid: string | null, enabled: boolean = true) {
+  const [given, setGiven] = useState(0);
+  const [received, setReceived] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const uid = auth.currentUser?.uid ?? null;
+
+  useEffect(() => {
+    if (!enabled || !uid || !otherUid || uid === otherUid) {
+      setLoading(false); setGiven(0); setReceived(0);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      // "given" = I was the owner who let `otherUid` park.
+      const givenSnap = await getDocs(query(
+        collection(db, 'parkingRequests'),
+        where('ownerId', '==', uid),
+        where('requesterId', '==', otherUid),
+        where('status', '==', 'completed'),
+        limit(50)
+      )).catch(() => null);
+
+      // "received" = `otherUid` was the owner who let me park.
+      const receivedSnap = await getDocs(query(
+        collection(db, 'parkingRequests'),
+        where('ownerId', '==', otherUid),
+        where('requesterId', '==', uid),
+        where('status', '==', 'completed'),
+        limit(50)
+      )).catch(() => null);
+
+      if (cancelled) return;
+      setGiven(givenSnap?.size ?? 0);
+      setReceived(receivedSnap?.size ?? 0);
+      setLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [uid, otherUid, enabled]);
+
+  return { given, received, loading };
 }
 
 export function useActiveParking(enabled: boolean = true) {

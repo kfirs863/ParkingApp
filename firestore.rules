@@ -193,6 +193,16 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── notifications ────────────────────────────────────
+    // Cloud Functions write here via Admin SDK (rules don't apply).
+    // Clients can only READ their own inbox and toggle 'read'.
+    match /notifications/{uid}/items/{itemId} {
+      allow read: if isOwner(uid);
+      allow update: if isOwner(uid)
+        && incomingData().diff(existingData()).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
     // ── thanks ───────────────────────────────────────────
     match /thanks/{thankId} {
       allow read: if isAuth() && (

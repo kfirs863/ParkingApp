@@ -10,7 +10,8 @@ import { colors, spacing, radius, typography } from '../../theme';
 import {
   useOpenRequests, useMyRequests, useMyApprovals,
   approveRequest, cancelApproval, confirmParking, cancelRequest, completeParking,
-  pingParker, thankOwner,
+  pingParker, thankOwner, useReciprocity,
+  useAvailableWindows, requestAvailabilityWindow, AvailabilityWindow,
   formatTimeRange, durationLabel, timeUntil, statusMeta,
   ParkingRequest,
 } from '../../hooks/useParking';
@@ -23,10 +24,51 @@ import { TimeoutError } from '../../utils/withTimeout';
 import { OfflineBanner } from '../../components/OfflineBanner';
 import { Sheet } from '../../components/Sheet';
 import { RequestListSkeleton } from '../../components/RequestCardSkeleton';
+import { InboxSheet } from '../../components/InboxSheet';
+import { useInbox } from '../../hooks/useNotifications';
 import { showAlert, showConfirm } from '../../utils/alert';
 import { haptics } from '../../utils/haptics';
 
 type Props = { navigation: BottomTabNavigationProp<MainTabParamList, 'Home'> };
+
+// ─── Reciprocity Banner ───────────────────────────────────
+// Shown inside ApproveModal. Surfaces the truth ("you've given to X 2 times,
+// X has given to you 4 times"). Intentionally not gamified — no points, no
+// rank, no leaderboard. The wording leans into gratitude when the other
+// person has given more, and is silent when there's no history.
+function ReciprocityBanner({
+  otherUid, otherName, visible,
+}: {
+  otherUid: string; otherName: string; visible: boolean;
+}) {
+  const { given, received, loading } = useReciprocity(otherUid, visible);
+  if (loading || (given === 0 && received === 0)) return null;
+
+  let line: string;
+  if (received > given) {
+    line = `${otherName} כבר נתן/ה לך לחנות ${received} פעמים — נחמד להחזיר טובה.`;
+  } else if (given > received) {
+    line = `נתת ל${otherName} לחנות ${given} פעמים. תודה ששומר/ת על הקהילה.`;
+  } else {
+    line = `איזון יפה: ${given} פעמים אתה ל${otherName}, ${received} ההפך.`;
+  }
+  return (
+    <View style={rb.box}>
+      <Text style={rb.icon}>🤝</Text>
+      <Text style={rb.text}>{line}</Text>
+    </View>
+  );
+}
+const rb = StyleSheet.create({
+  box: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.bgInput,
+    borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  icon: { fontSize: 18 },
+  text: { ...typography.caption, color: colors.textSecondary, flex: 1, textAlign: 'right', lineHeight: 18 },
+});
 
 // ─── Approve Modal ────────────────────────────────────────
 function ApproveModal({
@@ -92,6 +134,7 @@ function ApproveModal({
           {'\n'}{'דירה ' + request.requesterApartment + ' \u00b7 ' + towerLabel(request.requesterTower)}
           {'\n'}{formatTimeRange(request.fromTime, request.toTime)}
         </Text>
+        <ReciprocityBanner otherUid={request.requesterId} otherName={request.requesterName} visible={visible} />
         {request.requesterPhone ? (
           <View style={{ marginBottom: spacing.lg }}>
             <Text style={m.label}>טלפון הדייר</Text>
@@ -759,6 +802,137 @@ const rc = StyleSheet.create({
   cancelText: { ...typography.caption, color: colors.textMuted },
 });
 
+// ─── Marketplace: Available Window Card ───────────────────
+function AvailableWindowCard({
+  window, onClaim, disabled,
+}: {
+  window: AvailabilityWindow;
+  onClaim: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={aw.card}>
+      <View style={aw.header}>
+        <View style={aw.spotBadge}>
+          <Text style={aw.spotBadgeLbl}>חניה</Text>
+          <Text style={aw.spotBadgeNum}>{window.spotNumber}</Text>
+        </View>
+        <View style={aw.info}>
+          <Text style={aw.name} numberOfLines={1}>{window.ownerName}</Text>
+          <Text style={aw.meta} numberOfLines={1}>
+            {'דירה ' + window.ownerApartment + ' · ' + towerLabel(window.ownerTower)}
+          </Text>
+        </View>
+      </View>
+      <View style={aw.timeRow}>
+        <Text style={aw.timeText}>{formatTimeRange(window.fromTime, window.toTime)}</Text>
+        <Text style={aw.durationText}>{durationLabel(window.fromTime, window.toTime)}</Text>
+      </View>
+      <TouchableOpacity
+        style={[aw.claimBtn, disabled && { opacity: 0.5 }]}
+        onPress={onClaim}
+        disabled={disabled}
+        activeOpacity={0.7}
+      >
+        <Text style={aw.claimBtnText}>בקש את החלון הזה</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+const aw = StyleSheet.create({
+  card: {
+    backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border, gap: spacing.sm,
+  },
+  header: { flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.md },
+  spotBadge: {
+    width: 52, height: 52, borderRadius: radius.md,
+    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+  },
+  spotBadgeLbl: { fontSize: 9, fontWeight: '700', color: colors.bg },
+  spotBadgeNum: { fontSize: 20, fontWeight: '900', color: colors.bg },
+  info: { flex: 1, alignItems: 'flex-end' },
+  name: { ...typography.subtitle, color: colors.textPrimary },
+  meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  timeRow: {
+    flexDirection: 'row-reverse', justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+  },
+  timeText: { ...typography.body, color: colors.textPrimary, textAlign: 'right' },
+  durationText: { ...typography.caption, color: colors.textMuted },
+  claimBtn: {
+    backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent,
+    borderRadius: radius.md, paddingVertical: 12, alignItems: 'center',
+  },
+  claimBtnText: { ...typography.subtitle, color: colors.accent, fontSize: 14 },
+});
+
+// ─── Marketplace: Claim Sheet ─────────────────────────────
+function ClaimWindowSheet({
+  window, visible, onClose, profile,
+}: {
+  window: AvailabilityWindow | null;
+  visible: boolean;
+  onClose: () => void;
+  profile: { name: string; apartment: string; tower: string } | null;
+}) {
+  const [loading, setLoading] = useState(false);
+  const safeClose = () => { if (loading) return; onClose(); };
+  if (!window || !profile) return null;
+
+  const handleClaim = async () => {
+    setLoading(true);
+    try {
+      await requestAvailabilityWindow(window, profile);
+      haptics.success();
+      onClose();
+      showAlert(
+        'הבקשה נשלחה',
+        `${window.ownerName} יקבל/ת התראה. כשיאשר/תאשר — תוכל/י להכניס מספר רכב ולחנות.`
+      );
+    } catch (e: any) {
+      haptics.error();
+      if (e instanceof TimeoutError) {
+        showAlert('בעיית תקשורת', 'הבקשה לא נשלחה — בדוק/י את החיבור ונסה/י שוב.');
+      } else if (e?.message === 'DUPLICATE_REQUEST') {
+        showAlert('יש לך בקשה פעילה', 'בטל/י את הבקשה הקודמת לפני שליחת בקשה חדשה.');
+      } else {
+        showAlert('שגיאה', 'לא ניתן לשלוח כעת.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Sheet visible={visible} onClose={safeClose} dismissDisabled={loading} contentStyle={m.sheet}>
+      <View style={m.handle} />
+      <Text style={m.title}>בקש את החלון</Text>
+      <Text style={m.sub}>
+        {'חלון של '}
+        <Text style={{ color: colors.accent }}>{window.ownerName}</Text>
+        {'\n'}{'חניה ' + window.spotNumber + ' · ' + towerLabel(window.ownerTower)}
+        {'\n'}{formatTimeRange(window.fromTime, window.toTime)}
+      </Text>
+
+      <TouchableOpacity
+        style={[m.btn, loading && { opacity: 0.5 }]}
+        onPress={handleClaim}
+        disabled={loading}
+        activeOpacity={0.7}
+      >
+        {loading
+          ? <ActivityIndicator color={colors.bg} />
+          : <Text style={m.btnText}>שלח בקשה</Text>}
+      </TouchableOpacity>
+      <TouchableOpacity onPress={safeClose} disabled={loading} style={m.cancel} activeOpacity={0.7}>
+        <Text style={m.cancelText}>ביטול</Text>
+      </TouchableOpacity>
+    </Sheet>
+  );
+}
+
 // ─── HomeScreen ───────────────────────────────────────────
 export default function HomeScreen({ navigation }: Props) {
   const route = useRoute<RouteProp<{ Home: { openConfirm?: string; openApprove?: string; openActive?: boolean } }, 'Home'>>();
@@ -773,12 +947,16 @@ export default function HomeScreen({ navigation }: Props) {
   const { requests: myApprovals, loading: l3 } = useMyApprovals(isFocused);
   const { profile } = useUserProfile();
   const { session: activeSession } = useActiveParking(isFocused);
-  const [tab, setTab] = useState<'all' | 'mine' | 'gave'>('all');
+  const [tab, setTab] = useState<'all' | 'available' | 'mine' | 'gave'>('all');
+  const { windows: availableWindows, loading: l4 } = useAvailableWindows(isFocused && tab === 'available');
   const [approveTarget, setApproveTarget] = useState<ParkingRequest | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ParkingRequest | null>(null);
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [gaveTarget, setGaveTarget] = useState<ParkingRequest | null>(null);
+  const [claimTarget, setClaimTarget] = useState<AvailabilityWindow | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const { unreadCount } = useInbox(isFocused);
 
   const handledConfirmRef = useRef<string | null>(null);
   const handledApproveRef = useRef<string | null>(null);
@@ -845,8 +1023,23 @@ export default function HomeScreen({ navigation }: Props) {
           >
             <Text style={s.alertBadgeText}>🔔 אושרת!</Text>
           </TouchableOpacity>
-        ) : <View style={{ width: 80 }} />}
+        ) : (
+          <TouchableOpacity
+            style={s.bellBtn}
+            onPress={() => setInboxOpen(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="התראות"
+          >
+            <Text style={s.bellIcon}>🔔</Text>
+            {unreadCount > 0 && (
+              <View style={s.bellBadge}>
+                <Text style={s.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
+      <InboxSheet visible={inboxOpen} onClose={() => setInboxOpen(false)} />
 
       {activeSession && (
         <ActiveParkingCard
@@ -866,6 +1059,13 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={[s.tabText, tab === 'all' && s.tabTextActive]}>
             {'בקשות' + (othersReqs.length > 0 ? ' (' + othersReqs.length + ')' : '')}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.tab, tab === 'available' && s.tabActive]}
+          onPress={() => setTab('available')}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.tabText, tab === 'available' && s.tabTextActive]}>פנויות</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, tab === 'mine' && s.tabActive]}
@@ -934,6 +1134,18 @@ export default function HomeScreen({ navigation }: Props) {
               ))
             }
           </>
+        ) : tab === 'available' ? (
+          l4
+            ? <RequestListSkeleton count={2} />
+            : availableWindows.length === 0
+              ? <Empty emoji="📅" title="אין חלונות זמינים" sub="כשבעלי חניות יפרסמו זמני זמינות, הם יופיעו כאן" />
+              : availableWindows.map((w) => (
+                  <AvailableWindowCard
+                    key={w.id} window={w}
+                    onClaim={() => setClaimTarget(w)}
+                    disabled={!profile}
+                  />
+                ))
         ) : tab === 'mine' ? (
           myReqs.length === 0
             ? <Empty emoji="🙋" title="לא שלחת בקשות" sub="לחץ על 'בקש חניה' כשאתה צריך מקום" />
@@ -974,6 +1186,12 @@ export default function HomeScreen({ navigation }: Props) {
         visible={!!gaveTarget}
         onClose={() => setGaveTarget(null)}
       />
+      <ClaimWindowSheet
+        window={claimTarget}
+        visible={!!claimTarget}
+        onClose={() => setClaimTarget(null)}
+        profile={profile ? { name: profile.name, apartment: profile.apartment, tower: profile.tower } : null}
+      />
     </View>
   );
 }
@@ -1008,6 +1226,21 @@ const s = StyleSheet.create({
     paddingVertical: spacing.sm, borderRadius: radius.full,
   },
   alertBadgeText: { ...typography.label, color: colors.bg, textTransform: 'none', fontSize: 13 },
+  bellBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  bellIcon: { fontSize: 20 },
+  bellBadge: {
+    position: 'absolute', top: -4, end: -4,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: colors.error, paddingHorizontal: 4,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.bg,
+  },
+  bellBadgeText: { ...typography.caption, color: colors.bg, fontSize: 10, fontWeight: '800' },
   tabs: {
     flexDirection: 'row', marginHorizontal: spacing.lg,
     backgroundColor: colors.bgCard, borderRadius: radius.lg,

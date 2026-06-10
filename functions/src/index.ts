@@ -17,6 +17,10 @@ interface ParkingRequest {
   carNumber?: string;
   fromTime: admin.firestore.Timestamp;
   toTime: admin.firestore.Timestamp;
+  // Marketplace: the requester picked a specific owner's published window.
+  // When set, the broadcast trigger notifies only this owner instead of
+  // fanning out to all eligible owners.
+  targetOwnerId?: string;
 }
 
 interface UserDoc {
@@ -62,6 +66,12 @@ async function sendPush(
   body: string,
   data?: Record<string, string>
 ): Promise<void> {
+  // Persist the notification to the recipient's inbox regardless of FCM
+  // success/failure — this is the source of truth for the in-app bell.
+  // Best-effort: never let the inbox write fail the FCM call.
+  void writeInboxItem(uid, title, body, data).catch((e) =>
+    functions.logger.error('Inbox write failed', e?.message ?? e)
+  );
   try {
     await admin.messaging().send({
       token,
@@ -92,6 +102,26 @@ async function sendPush(
       functions.logger.error('FCM push send failed', err?.message ?? err);
     }
   }
+}
+
+// Persists an inbox item under notifications/{uid}/items. Bounded write —
+// the client is responsible for displaying / paginating, and a TTL-style
+// cleanup can be added later if growth becomes a concern.
+async function writeInboxItem(
+  uid: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  await db
+    .collection('notifications').doc(uid)
+    .collection('items').add({
+      title,
+      body,
+      data: data ?? {},
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 }
 
 function fmtTime(ts: admin.firestore.Timestamp): string {
@@ -295,6 +325,20 @@ export const onNewParkingRequest = functions
   .onCreate(async (snap) => {
     const req = snap.data() as ParkingRequest;
     if (req.status !== 'open') return;
+
+    // Marketplace: directed request to a specific owner. Skip the broadcast
+    // and ping only that owner — they offered the window, they get the call.
+    if (req.targetOwnerId) {
+      const token = await getTokenIfAllowed(req.targetOwnerId, 'broadcast');
+      if (token) {
+        await sendPush(token, req.targetOwnerId,
+          `${req.requesterName} ביקש/ה את החלון שפרסמת`,
+          `מ-${fmtTime(req.fromTime)} עד ${fmtTime(req.toTime)}. אשר/י כדי לשחרר.`,
+          { requestId: snap.id, action: 'approve' }
+        );
+      }
+      return;
+    }
 
     // Notify all owners with ownedSpot set, pushGeneral not opted-out,
     // who are not the requester and whose spot isn't already occupied.
