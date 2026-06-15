@@ -26,118 +26,122 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   return (
     <ScreenShell>
-      <ScrollView
-        style={styles.scrollOuter}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator
-      >
-        <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: slideUp }] }]}>
-          {/* Logo Mark */}
-          <View style={styles.logoWrap}>
-            <View style={styles.logoOuter}>
-              <View style={styles.logoInner}>
-                <Text style={styles.logoP}>P</Text>
+      {/* Layout: scrollable content above, fixed CTA below. The CTA is
+          OUTSIDE the ScrollView so it's anchored at the bottom of the
+          visible area and never moves — the user never has to scroll
+          to find it. The scroll only kicks in if the content above
+          would overflow the available space (small phones, large text). */}
+      <View style={styles.body}>
+        <ScrollView
+          style={styles.scrollOuter}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: slideUp }] }]}>
+            {/* Logo Mark */}
+            <View style={styles.logoWrap}>
+              <View style={styles.logoOuter}>
+                <View style={styles.logoInner}>
+                  <Text style={styles.logoP}>P</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Headline */}
-          <Text style={styles.hero}>Upper House{'\n'}Parking</Text>
-          <Text style={styles.sub}>
-            ניהול חניות משותף לשכנים —{'\n'}ללא קבוצות וואטסאפ, בלחיצה אחת.
-          </Text>
+            {/* Headline */}
+            <Text style={styles.hero}>Upper House{'\n'}Parking</Text>
+            <Text style={styles.sub}>
+              ניהול חניות משותף לשכנים —{'\n'}ללא קבוצות וואטסאפ, בלחיצה אחת.
+            </Text>
 
-          {/* Features */}
-          <View style={styles.features}>
-            {[
-              { icon: '🙋', text: 'בקש חניה כשאתה צריך מקום' },
-              { icon: '🅿️', text: 'יש לך חניה? אשר בקשות של שכנים' },
-              { icon: '🔔', text: 'קבל התראה כשהבקשה שלך אושרה' },
-            ].map(({ icon, text }) => (
-              <View key={text} style={styles.featureRow}>
-                <Text style={styles.featureIcon}>{icon}</Text>
-                <Text style={styles.featureText}>{text}</Text>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
+            {/* Features */}
+            <View style={styles.features}>
+              {[
+                { icon: '🙋', text: 'בקש חניה כשאתה צריך מקום' },
+                { icon: '🅿️', text: 'יש לך חניה? אשר בקשות של שכנים' },
+                { icon: '🔔', text: 'קבל התראה כשהבקשה שלך אושרה' },
+              ].map(({ icon, text }) => (
+                <View key={text} style={styles.featureRow}>
+                  <Text style={styles.featureIcon}>{icon}</Text>
+                  <Text style={styles.featureText}>{text}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </ScrollView>
 
-        {/* CTA — kept INSIDE the ScrollView so it's reachable when the
-            viewport height is mis-measured (iOS Chrome 100dvh bug). */}
+        {/* CTA — anchored at the bottom of the visible area, always
+            on-screen. */}
         <Animated.View style={[styles.cta, { opacity: fade }]}>
           <Button label="הירשם עם מספר טלפון" onPress={() => navigation.navigate('Phone')} />
           <Text style={styles.legal}>
             בלחיצה על "הירשם" אתה מסכים לתנאי השימוש ומדיניות הפרטיות
           </Text>
         </Animated.View>
-      </ScrollView>
+      </View>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  // No justifyContent:'center' here — on iOS Chrome, centering an
-  // overflowing flex child traps the top portion above the scrollable
-  // area with no way to reach it. Top-align the content; if it fits the
-  // viewport there's empty space at the bottom (acceptable); if it
-  // overflows, the whole thing is reachable.
+  body: { flex: 1 },
   scrollOuter: { flex: 1 },
-  scroll: { flexGrow: 1, paddingTop: spacing.xl, paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
+  scroll: { flexGrow: 1, paddingTop: spacing.lg, paddingBottom: spacing.lg },
   content: {},
-  cta: { marginTop: spacing.xl },
+  cta: { paddingTop: spacing.md, paddingBottom: 0 },
 
-  logoWrap: { marginBottom: spacing.xl, alignItems: 'flex-start' },
+  logoWrap: { marginBottom: spacing.lg, alignItems: 'flex-start' },
   logoOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoP: { fontSize: 32, fontWeight: '900', color: colors.accent },
+  logoP: { fontSize: 28, fontWeight: '900', color: colors.accent },
 
   hero: {
     ...typography.hero,
     color: colors.textPrimary,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     writingDirection: 'rtl',
   },
   sub: {
     ...typography.body,
     color: colors.textSecondary,
-    marginBottom: spacing.xl,
-    lineHeight: 24,
+    marginBottom: spacing.lg,
+    lineHeight: 22,
     textAlign: 'right',
   },
 
-  features: { gap: spacing.md },
+  features: { gap: spacing.sm },
   featureRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.md,
     backgroundColor: colors.bgCard,
-    padding: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  featureIcon: { fontSize: 22 },
+  featureIcon: { fontSize: 20 },
   featureText: { ...typography.body, color: colors.textPrimary, flex: 1, textAlign: 'right' },
 
   legal: {
     ...typography.caption,
     color: colors.textMuted,
     textAlign: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     lineHeight: 18,
   },
 });
