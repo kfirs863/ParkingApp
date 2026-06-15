@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Button, ScreenShell } from '../../components';
@@ -26,50 +26,58 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   return (
     <ScreenShell>
-      <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: slideUp }] }]}>
-        {/* Logo Mark */}
-        <View style={styles.logoWrap}>
-          <View style={styles.logoOuter}>
-            <View style={styles.logoInner}>
-              <Text style={styles.logoP}>P</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: slideUp }] }]}>
+          {/* Logo Mark */}
+          <View style={styles.logoWrap}>
+            <View style={styles.logoOuter}>
+              <View style={styles.logoInner}>
+                <Text style={styles.logoP}>P</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Headline */}
-        <Text style={styles.hero}>Upper House{'\n'}Parking</Text>
-        <Text style={styles.sub}>
-          ניהול חניות משותף לשכנים —{'\n'}ללא קבוצות וואטסאפ, בלחיצה אחת.
-        </Text>
+          {/* Headline */}
+          <Text style={styles.hero}>Upper House{'\n'}Parking</Text>
+          <Text style={styles.sub}>
+            ניהול חניות משותף לשכנים —{'\n'}ללא קבוצות וואטסאפ, בלחיצה אחת.
+          </Text>
 
-        {/* Features */}
-        <View style={styles.features}>
-          {[
-            { icon: '🙋', text: 'בקש חניה כשאתה צריך מקום' },
-            { icon: '🅿️', text: 'יש לך חניה? אשר בקשות של שכנים' },
-            { icon: '🔔', text: 'קבל התראה כשהבקשה שלך אושרה' },
-          ].map(({ icon, text }) => (
-            <View key={text} style={styles.featureRow}>
-              <Text style={styles.featureIcon}>{icon}</Text>
-              <Text style={styles.featureText}>{text}</Text>
-            </View>
-          ))}
-        </View>
-      </Animated.View>
+          {/* Features */}
+          <View style={styles.features}>
+            {[
+              { icon: '🙋', text: 'בקש חניה כשאתה צריך מקום' },
+              { icon: '🅿️', text: 'יש לך חניה? אשר בקשות של שכנים' },
+              { icon: '🔔', text: 'קבל התראה כשהבקשה שלך אושרה' },
+            ].map(({ icon, text }) => (
+              <View key={text} style={styles.featureRow}>
+                <Text style={styles.featureIcon}>{icon}</Text>
+                <Text style={styles.featureText}>{text}</Text>
+              </View>
+            ))}
+          </View>
+        </Animated.View>
 
-      {/* CTA */}
-      <Animated.View style={{ opacity: fade }}>
-        <Button label="הירשם עם מספר טלפון" onPress={() => navigation.navigate('Phone')} />
-        <Text style={styles.legal}>
-          בלחיצה על "הירשם" אתה מסכים לתנאי השימוש ומדיניות הפרטיות
-        </Text>
-      </Animated.View>
+        {/* CTA — kept INSIDE the ScrollView so it's reachable when the
+            viewport height is mis-measured (iOS Chrome 100dvh bug). */}
+        <Animated.View style={[styles.cta, { opacity: fade }]}>
+          <Button label="הירשם עם מספר טלפון" onPress={() => navigation.navigate('Phone')} />
+          <Text style={styles.legal}>
+            בלחיצה על "הירשם" אתה מסכים לתנאי השימוש ומדיניות הפרטיות
+          </Text>
+        </Animated.View>
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, justifyContent: 'center' },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
+  content: { justifyContent: 'center' },
+  cta: { marginTop: spacing.xl },
 
   logoWrap: { marginBottom: spacing.xl, alignItems: 'flex-start' },
   logoOuter: {
