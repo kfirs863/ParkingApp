@@ -27,8 +27,9 @@ export default function WelcomeScreen({ navigation }: Props) {
   return (
     <ScreenShell>
       <ScrollView
+        style={styles.scrollOuter}
         contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator
       >
         <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: slideUp }] }]}>
           {/* Logo Mark */}
@@ -75,8 +76,14 @@ export default function WelcomeScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
-  content: { justifyContent: 'center' },
+  // No justifyContent:'center' here — on iOS Chrome, centering an
+  // overflowing flex child traps the top portion above the scrollable
+  // area with no way to reach it. Top-align the content; if it fits the
+  // viewport there's empty space at the bottom (acceptable); if it
+  // overflows, the whole thing is reachable.
+  scrollOuter: { flex: 1 },
+  scroll: { flexGrow: 1, paddingTop: spacing.xl, paddingBottom: Platform.OS === 'web' ? 120 : spacing.xl },
+  content: {},
   cta: { marginTop: spacing.xl },
 
   logoWrap: { marginBottom: spacing.xl, alignItems: 'flex-start' },
