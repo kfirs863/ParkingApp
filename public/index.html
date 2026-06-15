@@ -3,6 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- Belt-and-suspenders cache busting. The Cache-Control hosting
+         header already says no-cache, but iOS browsers sometimes ignore
+         it when a service worker is registered. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
@@ -83,6 +89,38 @@
           window.visualViewport.addEventListener('resize', setAppHeight);
         }
         setAppHeight();
+      })();
+    </script>
+    <script>
+      // ONE-TIME SERVICE WORKER PURGE. Users who installed an earlier
+      // version of the PWA have a stale service worker controlling their
+      // tab, and some of them never seem to pick up new index.html
+      // revisions (iOS WebKit + SW interaction). On the next load only,
+      // unregister any controlling SW and reload once with cache bypassed.
+      // The sessionStorage flag prevents infinite reload loops; the FCM
+      // service worker re-registers itself the next time the user runs
+      // usePushNotifications (i.e. they're signed in).
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+        if (sessionStorage.getItem('sw-purged-v2') === '1') return;
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          if (regs.length === 0) {
+            sessionStorage.setItem('sw-purged-v2', '1');
+            return;
+          }
+          Promise.all(regs.map(function (r) { return r.unregister(); }))
+            .then(function () {
+              sessionStorage.setItem('sw-purged-v2', '1');
+              // Clear the http cache as best we can, then reload.
+              if (window.caches && caches.keys) {
+                caches.keys().then(function (keys) {
+                  return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                }).then(function () { location.reload(); });
+              } else {
+                location.reload();
+              }
+            });
+        });
       })();
     </script>
   </head>
